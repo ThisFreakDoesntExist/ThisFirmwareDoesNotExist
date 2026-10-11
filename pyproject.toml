@@ -1,0 +1,38 @@
+[project]
+name = "freakpatch"
+version = "0.1.0"
+description = "ThisFirmwareDoesNotExist presents freakpatch: patch your own official Arturia MicroFreak firmware update file."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = []
+keywords = ["microfreak", "arturia", "firmware", "synthesizer", "thumb", "cortex-m4"]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+
+[project.scripts]
+freakpatch = "freakpatch.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "unicorn>=2.1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

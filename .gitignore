@@ -1,0 +1,23 @@
+# Firmware never goes in this repository: users patch their own copy.
+*.mff
+*.bin
+*.hex
+*.elf
+
+# Ghidra projects and exports
+*.gpr
+*.rep/
+ghidra-out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# OS
+.DS_Store

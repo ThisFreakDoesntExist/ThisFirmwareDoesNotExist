@@ -1,0 +1,32 @@
+{
+  "name": "diag-hook",
+  "description": "Diagnostic: diag-region plus one boot-time hook into the region that does exactly what the stock call did.",
+  "source": "diag.S",
+  "region": {
+    "start": "0x0802CA94",
+    "end": "0x0802CC04",
+    "was": "console 'synth' test handler, retired by the 0x080740D4 edit"
+  },
+  "hooks": [
+    {
+      "site": "0x0801103C",
+      "kind": "bl",
+      "symbol": "passthrough",
+      "was": "bl 0x0800E730 (constructor, after group 19)"
+    }
+  ],
+  "edits": [
+    {
+      "site": "0x080740D4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"
+    }
+  ],
+  "options": {},
+  "source_sha256": "6e5fefb5509fb336b6e702f9d1aae43e731488eb61a294e1b0b81ae0b8f3134f",
+  "symbols": {
+    "passthrough": 0
+  },
+  "code": "dff804c06047000031e70008"
+}
