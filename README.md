@@ -118,6 +118,11 @@ Tests that read or emulate firmware use the file named by `FREAKPATCH_STOCK_MFF`
 
 Contributions are welcome, especially new patches and corrections to the docs. Please keep the ground rules: derive everything from Arturia's official firmware, never commit firmware or bytes copied from it, and keep the main image at its stock length.
 
+## Credits
+
+- **[ThisFreakDoesntExist](https://github.com/ThisFreakDoesntExist):** project direction, and every flash, recovery and listening test on real hardware.
+- **[Claude Code](https://claude.com/claude-code):** firmware analysis, the patches, `freakpatch`, the tests and these docs.
+
 ## License
 
 [MIT](LICENSE). The MicroFreak firmware itself belongs to Arturia and isn't covered by this license or included here.
