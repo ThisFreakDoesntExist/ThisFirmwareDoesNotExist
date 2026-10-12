@@ -8,8 +8,9 @@ from pathlib import Path
 
 from freakpatch.patcher import LATEST_VERSION, Patch, PatchError, apply
 
-PATCHES = ("release", "diag-region", "diag-hook")
-"""``release`` is the feature; the ``diag-*`` builds check its placement on hardware first."""
+PATCHES = ("release", "release-matrix", "matrix-cc", "diag-region", "diag-hook")
+"""``release`` is the hardware-tested feature, ``release-matrix`` adds the mod matrix over MIDI CC to it, and
+``matrix-cc`` is that on its own; the ``diag-*`` builds check placement on hardware first."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -22,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.list:
         for name in PATCHES:
-            print(f"{name:12s} {Patch.load(name).description}")
+            print(f"{name:15s} {Patch.load(name).description}")
         return 0
     if args.firmware is None:
         parser.error("the official firmware file is required")

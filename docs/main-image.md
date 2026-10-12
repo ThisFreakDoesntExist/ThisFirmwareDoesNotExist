@@ -99,6 +99,7 @@ Every synth setting is a parameter in one static object at `0x2001C898`, built a
 - **Flag byte 1:** bit 0 = saved in presets, bit 2 = "Shift selects id + 1", bit 7 = handled as a UI control.
 - **MIDI CCs:** the registrar fills a CC map at `obj+0x14C + cc*2` = (index, group). Stock maps CCs 2, 5, 9, 10, 12, 13, 23, 24, 26, 28, 29, 83, 91, 92, 93, 94, 102, 103, 105 and 106. Incoming CCs go through `FUN_080478A4`; the listener `FUN_080239CC` sends CCs out when a mapped parameter changes. A newly registered parameter with a CC gets both directions for free.
 - **Group 6 (EG2, the amp envelope):** Mode, Attack (CC 105), Dec/Rel (CC 106), Sustain (CC 29), Legato, Amount (CC 26), Snap.
+- **Groups 10–16 (Co1–Co7, the mod matrix):** one group per destination row (Pitch, Wave, Timbre, Cutoff, Assign 1–3). Indices 0–4 are the signed amounts for CyclEnv, Env, LFO, Press and Key/Arp, index 5 the row's `Dest`. None has a CC. Filter Amt is the Env → Cutoff cell: CC 26 also writes `0x0D01` ([details](matrix-cc.md#what-the-matrix-is-in-the-firmware)).
 
 [The Release patch](release-patch.md#parameter-system) lists every function that reads the group count and what each does with an unknown group.
 

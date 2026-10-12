@@ -3,7 +3,9 @@
     python tools/build_patch.py patches/release
 
 reads ``patches/release.hooks.json`` and its source (``patches/release.S``, or the
-spec's ``source``) and writes ``src/freakpatch/patches/release.json``. Needs a clang with the Thumb target
+spec's ``source``) and writes ``src/freakpatch/patches/release.json``. A spec with ``"combine": [names]``
+(``patches/release-matrix``) builds each named single-region spec and ships them as one patch with
+several ``parts``. Needs a clang with the Thumb target
 (Apple clang and upstream LLVM both have it). The object must have no relocations:
 every stock address in the source is a literal constant.
 """
@@ -11,6 +13,7 @@ every stock address in the source is a literal constant.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import struct
 import subprocess
@@ -61,8 +64,8 @@ def assemble(source: Path) -> tuple[bytes, dict[str, int]]:
     return code, symbols
 
 
-def main(stem: str) -> None:
-    base = ROOT / stem
+def build(base: Path) -> dict:
+    """The shipped JSON of a single-region patch, from ``<base>.hooks.json`` and its source."""
     spec = json.loads(base.with_suffix(".hooks.json").read_text())
     source = base.parent / spec.get("source", base.name + ".S")
     code, symbols = assemble(source)
@@ -70,20 +73,58 @@ def main(stem: str) -> None:
     if len(code) > region:
         raise ValueError(f"{source.name}: {len(code)} bytes do not fit the {region}-byte region")
     needed = {h["symbol"] for h in spec["hooks"]} | {o["symbol"] for o in spec["options"].values()}
+    if "cc_table" in spec:
+        needed.add(spec["cc_table"]["symbol"])
     missing = needed - symbols.keys()
     if missing:
         raise ValueError(f"symbols not exported by {source.name}: {sorted(missing)}")
-    patch = {
+    return {
         **spec,
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "symbols": {k: symbols[k] for k in sorted(needed)},
         "code": code.hex(),
     }
+
+
+def combine(spec: dict, parts: list[dict]) -> dict:
+    """One patch from several single-region patches: each keeps its region, code and symbols."""
+    regions = sorted((int(p["region"]["start"], 16), int(p["region"]["end"], 16), p["name"]) for p in parts)
+    for (_, end, a), (start, _, b) in itertools.pairwise(regions):
+        if start < end:
+            raise ValueError(f"regions of {a} and {b} overlap")
+    sites = [int(x["site"], 16) for p in parts for x in p["hooks"] + p["edits"]]
+    if len(sites) != len(set(sites)):
+        raise ValueError("two parts patch the same site")
+    symbols = [s for p in parts for s in p["symbols"]]
+    if len(symbols) != len(set(symbols)):
+        raise ValueError("two parts export the same symbol")
+    keys = ("name", "region", "source", "source_sha256", "symbols", "code")
+    return {
+        "name": spec["name"],
+        "description": spec["description"],
+        "parts": [{k: p[k] for k in keys if k in p} for p in parts],
+        "hooks": [h for p in parts for h in p["hooks"]],
+        "edits": [e for p in parts for e in p["edits"]],
+        "options": {k: v for p in parts for k, v in p["options"].items()},
+        **next(({"cc_table": p["cc_table"]} for p in parts if "cc_table" in p), {}),
+    }
+
+
+def main(stem: str) -> None:
+    base = ROOT / stem
+    spec = json.loads(base.with_suffix(".hooks.json").read_text())
+    if "combine" in spec:
+        parts = [build(base.parent / name) for name in spec["combine"]]
+        patch = combine(spec, parts)
+    else:
+        parts = [patch := build(base)]
     out = ROOT / "src" / "freakpatch" / "patches" / f"{base.name}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(patch, indent=2) + "\n")
-    hooks, edits = len(spec["hooks"]), len(spec["edits"])
-    print(f"{out.relative_to(ROOT)}: {len(code)} of {region} bytes, {hooks} hooks, {edits} edits")
+    for p in parts:
+        size = int(p["region"]["end"], 16) - int(p["region"]["start"], 16)
+        print(f"{out.relative_to(ROOT)}: {p['name']}: {len(p['code']) // 2} of {size} bytes")
+    print(f"{len(patch['hooks'])} hooks, {len(patch['edits'])} edits")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,8 @@
 Only the latest official firmware is accepted, identified by the SHA-256 of the whole
 ``.mff``. The main image keeps its exact stock length: MicroFreak hardware hangs at the
 boot logo with any longer image. A patch's code goes into a code region inside the
-image that the patch itself makes unreachable (see ``docs/release-patch.md``), stock
+image that the patch itself makes unreachable (see ``docs/release-patch.md``; a combined
+build has one such region per part), stock
 instructions at the hook sites become branches into it, and a few single instructions
 or words are rewritten in place. No firmware bytes are shipped with the patcher:
 everything else comes from the user's file.
@@ -66,42 +67,88 @@ class Edit:
 
 
 @dataclass(frozen=True)
-class Patch:
-    name: str
-    description: str
+class Part:
+    """Code placed in one region; ``symbols`` are offsets into ``code``."""
+
     region: tuple[int, int]
     code: bytes
     symbols: dict[str, int]
+
+    @classmethod
+    def from_spec(cls, raw: dict) -> Part:  # type: ignore[type-arg]
+        region = (int(raw["region"]["start"], 16), int(raw["region"]["end"], 16))
+        return cls(region, bytes.fromhex(raw["code"]), raw["symbols"])
+
+
+@dataclass(frozen=True)
+class Patch:
+    name: str
+    description: str
+    parts: tuple[Part, ...]
+    """One per code region: a single patch has one, a combined build (``parts`` in its JSON) several."""
     hooks: tuple[Hook, ...]
     edits: tuple[Edit, ...]
     options: dict[str, dict[str, object]]
+    cc_table: tuple[str, int] | None = None
+    """(symbol, length) of a table of MIDI CCs the patch maps, 0 = none."""
 
     @classmethod
     def load(cls, name: str) -> Patch:
         raw = json.loads(resources.files("freakpatch.patches").joinpath(f"{name}.json").read_text())
+        table = raw.get("cc_table")
         return cls(
             name=raw["name"],
             description=raw.get("description", ""),
-            region=(int(raw["region"]["start"], 16), int(raw["region"]["end"], 16)),
-            code=bytes.fromhex(raw["code"]),
-            symbols=raw["symbols"],
+            parts=tuple(Part.from_spec(p) for p in raw.get("parts", [raw])),
             hooks=tuple(Hook(int(h["site"], 16), h["kind"], h["symbol"]) for h in raw["hooks"]),
             edits=tuple(Edit.from_spec(e) for e in raw["edits"]),
             options=raw["options"],
+            cc_table=(table["symbol"], table["length"]) if table else None,
         )
 
     @property
-    def load_address(self) -> int:
-        return self.region[0]
+    def region(self) -> tuple[int, int]:
+        """The code region of a single-region patch."""
+        return self._single().region
+
+    @property
+    def code(self) -> bytes:
+        """The code of a single-region patch."""
+        return self._single().code
+
+    @property
+    def symbols(self) -> dict[str, int]:
+        """Every part's symbols, as offsets into that part's code."""
+        return {k: v for part in self.parts for k, v in part.symbols.items()}
+
+    def _single(self) -> Part:
+        if len(self.parts) != 1:
+            raise PatchError(f"{self.name} has {len(self.parts)} code regions")
+        return self.parts[0]
+
+    def part_of(self, symbol: str) -> Part:
+        return next(part for part in self.parts if symbol in part.symbols)
 
     def address(self, symbol: str) -> int:
-        return self.load_address + self.symbols[symbol]
+        return self.part_of(symbol).region[0] + self.symbols[symbol]
+
+    def mapped_ccs(self, code: dict[int, bytes] | None = None) -> set[int]:
+        """The CCs in the patch's CC table (``code``: patched code per region start, if not the shipped code)."""
+        if self.cc_table is None:
+            return set()
+        symbol, length = self.cc_table
+        part = self.part_of(symbol)
+        data = (code or {}).get(part.region[0], part.code)
+        offset = part.symbols[symbol]
+        return set(data[offset : offset + length]) - {0}
 
     def touched(self) -> set[int]:
         """Payload offsets this patch may change."""
-        start, end = self.region
         spans = [(h.site, 4) for h in self.hooks] + [(e.site, len(e.encode())) for e in self.edits]
-        return set(range(start - MAIN_BASE, end - MAIN_BASE)) | {s - MAIN_BASE + i for s, n in spans for i in range(n)}
+        regions = {
+            i for start, end in (p.region for p in self.parts) for i in range(start - MAIN_BASE, end - MAIN_BASE)
+        }
+        return regions | {s - MAIN_BASE + i for s, n in spans for i in range(n)}
 
 
 def check_latest(raw: bytes) -> None:
@@ -114,9 +161,11 @@ def check_latest(raw: bytes) -> None:
         )
 
 
-def _release_cc(value: int) -> int:
+def _release_cc(value: int, taken: set[int]) -> int:
     if not 1 <= value <= 119 or value in STOCK_CCS:
         raise PatchError(f"CC {value} is not available: use 1-119, not one of the stock CCs {sorted(STOCK_CCS)}")
+    if value in taken:
+        raise PatchError(f"CC {value} is not available: the patch maps it to the mod matrix")
     return value
 
 
@@ -128,15 +177,20 @@ def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
     image = update.read(name)
     payload = bytearray(mff.main_payload(image))
 
-    start, end = patch.region
-    if start % 4 or len(patch.code) > end - start or end > MAIN_BASE + len(payload):
-        raise PatchError(f"{patch.name}: code does not fit its region {start:#x}-{end:#x}")
-    code = bytearray(patch.code)
+    codes = {}
+    for part in patch.parts:
+        start, end = part.region
+        if start % 4 or len(part.code) > end - start or end > MAIN_BASE + len(payload):
+            raise PatchError(f"{patch.name}: code does not fit its region {start:#x}-{end:#x}")
+        codes[start] = bytearray(part.code)
     if release_cc is not None:
         if "release_cc" not in patch.options:
             raise PatchError(f"{patch.name} has no Release CC")
-        code[patch.symbols[str(patch.options["release_cc"]["symbol"])]] = _release_cc(release_cc)
-    payload[start - MAIN_BASE : start - MAIN_BASE + len(code)] = code
+        symbol = str(patch.options["release_cc"]["symbol"])
+        part = patch.part_of(symbol)
+        codes[part.region[0]][part.symbols[symbol]] = _release_cc(release_cc, patch.mapped_ccs())
+    for start, code in codes.items():
+        payload[start - MAIN_BASE : start - MAIN_BASE + len(code)] = code
 
     for hook in patch.hooks:
         encode = thumb.bl if hook.kind == "bl" else thumb.b_w

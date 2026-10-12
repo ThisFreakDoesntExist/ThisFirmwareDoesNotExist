@@ -1,0 +1,5 @@
+{
+  "name": "release-matrix",
+  "description": "Separate Release plus the mod matrix over MIDI CC, in one build.",
+  "combine": ["release", "matrix-cc"]
+}

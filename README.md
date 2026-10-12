@@ -26,6 +26,12 @@ Tested on real hardware, not just in theory, with firmware **5.0.0.2084**, the l
 
 Could it do more? Sure. But thats your job and the point of this repo!
 
+## Release + the mod matrix over MIDI CC
+
+`--patch release-matrix` builds everything above **plus** every mod-matrix amount on its own MIDI CC, sent and received, so a DAW can record and automate the matrix. CC 0–127 is −100%…+100%, CC 64 is exactly 0, and values round-trip exactly. Env → Cutoff keeps its stock CC 26 (it's the Filter Amt knob). The CC for each cell is in [docs/matrix-cc.md](docs/matrix-cc.md#ccs).
+
+Verified under emulation against the real firmware code, **not yet flashed**. The default build stays the hardware-tested Release patch.
+
 ## Use
 
 You need Python 3.11 or newer, and something to feed it: the official update file `microfreak_Firmware_Update_5.0.0.2084.mff`. Download it from Arturia's MicroFreak resources page, or use the copy MIDI Control Center keeps (on macOS: `/Library/Arturia/MIDI Control Center/Firmware/`).
@@ -57,7 +63,7 @@ PYTHONPATH=src python3 -m freakpatch path/to/microfreak_Firmware_Update_5.0.0.20
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-o OUT.mff`     | where to write the patched file (default: next to the input, named `<input>_<patch>.mff`)                                                                              |
 | `--release-cc N` | MIDI CC for Release instead of 72. Must be 1–119 and not one of the CCs the stock firmware already uses.                                                               |
-| `--patch NAME`   | `release` (default), or one of the hardware diagnostics `diag-region` / `diag-hook` (see [docs/writing-a-patch.md](docs/writing-a-patch.md#test-on-hardware-in-steps)) |
+| `--patch NAME`   | `release` (default), `release-matrix` (Release plus the mod matrix over MIDI CC), `matrix-cc` (the matrix alone), or one of the hardware diagnostics `diag-region` / `diag-hook` (see [docs/writing-a-patch.md](docs/writing-a-patch.md#test-on-hardware-in-steps)) |
 | `--list`         | describe the available patches                                                                                                                                         |
 
 `freakpatch` is a picky eater. It accepts **only** the official 5.0.0.2084 file (SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`). It refuses anything else, including a file it has already patched: one freaking per file. It also checks its own output: same length as stock, and nothing changed except the bytes the patch declares.
@@ -91,6 +97,7 @@ No surprises in the output either: it's deterministic. The default Release build
 | [Writing a patch](docs/writing-a-patch.md)                     | The patch format, hooks and edits, building, testing under emulation, flashing safely                          |
 | [Oscillator engines](docs/oscillator-engines.md)               | Engine IDs, the descriptor table, engine classes, and how to replace an engine                                 |
 | [The Release patch](docs/release-patch.md)                     | Every address the Release patch uses and how it was derived and checked: a worked example                      |
+| [The mod matrix over MIDI CC](docs/matrix-cc.md)               | The matrix as stock stores it, the three hooks, the CC table, and how two patches combine into one build       |
 | [Reverse-engineering setup](docs/reverse-engineering-setup.md) | Headless Ghidra scripts and the raw-byte reference scanner                                                     |
 | [Related projects](docs/related-projects.md)                   | Other open-source MicroFreak tools and where they fit                                                          |
 
@@ -100,7 +107,7 @@ No surprises in the output either: it's deterministic. The default Release build
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/freakpatch/`               | The `freakpatch` CLI and library: `mff.py` (update container), `thumb.py` (Thumb-2 branch encoders), `patcher.py` (hash gate, apply, self-check), `cli.py` |
 | `src/freakpatch/patches/*.json` | Built patches: our code bytes, symbols, hook sites, edits                                                                                                  |
-| `patches/`                      | Patch sources: `release.S` + `release.hooks.json`, and the diagnostics `diag.S` + `diag-*.hooks.json`                                                      |
+| `patches/`                      | Patch sources: `release.S` + `release.hooks.json`, `matrix_cc.S` + `matrix-cc.hooks.json`, the combined `release-matrix.hooks.json`, and the diagnostics `diag.S` + `diag-*.hooks.json` |
 | `tools/build_patch.py`          | Assembles a patch with clang into the shipped JSON                                                                                                         |
 | `tools/ghidra/`                 | Headless Ghidra scripts for exploring the stock image                                                                                                      |
 | `tests/`                        | Unit tests, a Unicorn harness that runs single stock functions (`emu.py`), and the raw-byte reference scanner (`refscan.py`)                               |

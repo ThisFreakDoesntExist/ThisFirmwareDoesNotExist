@@ -1,0 +1,51 @@
+{
+  "name": "matrix-cc",
+  "description": "Mod matrix over MIDI CC: all 35 matrix amounts sent and received as CCs, -100..+100% as 0..127 with 64 = 0.",
+  "source": "matrix_cc.S",
+  "region": {
+    "start": "0x0802CA94",
+    "end": "0x0802CC04",
+    "was": "console 'synth' test handler, retired by the 0x080740D4 edit"
+  },
+  "hooks": [
+    {
+      "site": "0x08043530",
+      "kind": "bl",
+      "symbol": "matrix_boot",
+      "was": "bl 0x0800EB10 (parameter object constructor, its only call)"
+    },
+    {
+      "site": "0x080479D6",
+      "kind": "bl",
+      "symbol": "matrix_cc_in",
+      "was": "ubfx r3,r9,#8,#8 (MIDI in: group of the CC's parameter)"
+    },
+    {
+      "site": "0x08023A02",
+      "kind": "bl",
+      "symbol": "matrix_cc_out",
+      "was": "asrs r5,r5,#8; uxtb r1,r5 (MIDI out: CC value of a changed parameter)"
+    }
+  ],
+  "edits": [
+    {
+      "site": "0x080740D4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"
+    }
+  ],
+  "options": {},
+  "cc_table": {
+    "symbol": "matrix_ccs",
+    "length": 35
+  },
+  "source_sha256": "0a9c362a9edc10ce9c387f788f35c3ebe035009e7c310e17bb6ce782523fdee6",
+  "symbols": {
+    "matrix_boot": 0,
+    "matrix_cc_in": 60,
+    "matrix_cc_out": 106,
+    "matrix_ccs": 144
+  },
+  "code": "70b5dff884c0e04721a4204d0026a35d83b10522b6fbf2f000fb12610a3005eb430282f84c1182f84d0105eb8002d2f8ec2053540136232ee9d170bdc9f30723a3f10a0cbcf1060f0ed85ffa89fcbcf1040f09d844f2810ce045a8f580484fea480808bf4ff000087047c3f307210a39062906d8d9b2042903d805f500456d0a00e02d12e9b2704711eb000898c801200e0f141516191b1e1f0355565758595a00686b6c6d6e6f70717273747576774b4c4d4e00"
+}
