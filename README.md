@@ -28,7 +28,7 @@ Could it do more? Sure. But thats your job and the point of this repo!
 
 ## Release + the mod matrix over MIDI CC
 
-`--patch release-matrix` builds everything above **plus** every mod-matrix amount on its own MIDI CC, sent and received, so a DAW can record and automate the matrix. CC 0–127 is −100%…+100%, CC 64 is exactly 0, and values round-trip exactly. Env → Cutoff keeps its stock CC 26 (it's the Filter Amt knob). The CC for each cell is in [docs/matrix-cc.md](docs/matrix-cc.md#ccs).
+`--patch release-matrix` builds everything above **plus** every mod-matrix amount on its own MIDI CC, sent and received, so a DAW can record and automate the matrix. CC 0–127 is −100%…+100%, CC 64 is exactly 0, and values round-trip exactly. Env → Cutoff keeps its stock CC 26 (it's the Filter Amt knob). Editing the matrix on the synth sends its CCs; with Local Control off, matrix edits apply locally and send nothing, as in stock. The CC for each cell is in [docs/matrix-cc.md](docs/matrix-cc.md#ccs).
 
 Verified under emulation against the real firmware code, **not yet flashed**. The default build stays the hardware-tested Release patch.
 

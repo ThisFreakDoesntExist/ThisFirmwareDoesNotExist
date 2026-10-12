@@ -6,18 +6,29 @@
 @ Press and Key/Arp. They are ordinary saved parameters with no CC (127), and
 @ their values are signed: 0 is no modulation, -0x8000..+0x7FFE is -100..+100%.
 @
-@   matrix_boot     after the parameter object is built, give each cell in
-@                   matrix_ccs its CC in both directions
-@   matrix_cc_in    incoming CC: 0..127 -> -100..+100%, CC 64 = exactly 0
-@   matrix_cc_out   outgoing CC: the inverse, so values round-trip exactly
+@   matrix_boot      after the parameter object is built, give each cell in
+@                    matrix_ccs its CC in both directions
+@   matrix_cc_in     incoming CC: 0..127 -> -100..+100%, CC 64 = exactly 0
+@   matrix_cc_out    outgoing CC from the parameter-change listener (panel
+@   matrix_send_cc   edits, preset loads) and from the set-and-send function:
+@                    the inverse, so values round-trip exactly
+@   matrix_local, matrix_local2
+@                    with Local Control off, stock refuses panel writes to a
+@                    parameter that has a CC; matrix cells stay exempt, as in
+@                    stock, so the matrix keeps working locally
 @
 @ Stock already converts this way for one cell: CC 26 (Filter Amt, 0x605) also
 @ writes Env -> Cutoff (0x0D01) as (v15 - 0x4000) * 2, with CC 64 as 0. That
 @ cell keeps CC 26 and gets no second CC here.
 @
-@ The code is placed over the factory console's "synth" handler, which the
-@ patch retires. It has no relocations: every stock address is a literal.
-@ docs/matrix-cc.md records where every address comes from.
+@ Stock has eight more CC senders, in the panel's pot and encoder handlers.
+@ They only run for the 24 parameters of the fixed panel list at 0x08073788,
+@ which holds no matrix cell, so they keep sending exactly what stock sends.
+@
+@ Every hook here replaces 4 bytes with a `bl` where lr holds nothing live, and
+@ returns with `bx lr`. The code is placed over the factory console's "synth"
+@ handler, which the patch retires. It has no relocations: every stock address
+@ is a literal. docs/matrix-cc.md records where every address comes from.
 
         .syntax unified
         .thumb
@@ -30,10 +41,20 @@
         .equ FIRST_ROW,      10              @ Co1
         .equ ROWS,           7
         .equ SOURCES,        5
+        .equ FIRST_ID,       FIRST_ROW << 8
         .equ CC_64,          0x4081          @ CC value 64 after stock's 7-to-15-bit stretch
+        .equ NO_CC,          0x7F
+
+@ Only matrix amounts reach these hooks with a CC: the Dest parameters
+@ (index 5) and Env -> Cutoff keep "no CC". So "is this a matrix amount?" is
+@ just "is the id in 0x0A00..0x10FF?":
+        .macro  IF_MATRIX_ID scratch, id
+        sub     \scratch, \id, #FIRST_ID
+        cmp     \scratch, #ROWS << 8
+        .endm                           @ then: lo = matrix
 
 @ ------------------------------------------------------------------ boot
-@ Replaces `bl 0x0800EB10` at 0x08043530, the constructor's only caller
+@ Replaces `bl 0x0800EB10` at 0x08043530, the constructor's only call
 @ (r0 = obj). The Release patch's group is registered inside it, so the CC map
 @ is complete when this runs. The caller reloads r0 afterwards.
 
@@ -74,12 +95,8 @@ matrix_boot:
         .thumb_func
 matrix_cc_in:
         ubfx    r3, r9, #8, #8
-        sub     r12, r3, #FIRST_ROW
-        cmp     r12, #ROWS - 1
-        bhi     1f
-        uxtb    r12, r9
-        cmp     r12, #SOURCES - 1
-        bhi     1f
+        IF_MATRIX_ID r12, r9
+        bhs     1f
         movw    r12, #CC_64
         cmp     r8, r12
         sub     r8, r8, #0x4000
@@ -89,34 +106,69 @@ matrix_cc_in:
 1:      bx      lr
 
 @ ------------------------------------------------------------------ MIDI out
-@ Replaces `asrs r5, r5, #8; uxtb r1, r5` at 0x08023A02 in the listener that
-@ sends a parameter's CC when it changes: r3 = parameter id, r5 = its value.
-@ Stock sends value >> 8; a matrix amount sends (value + 0x8000) >> 9, so
-@ -100%, 0 and +100% go out as 0, 64 and 127. Returns r5 and r1 = the CC value.
+@ Both stock senders a matrix amount can reach compute the CC value as
+@ `asrs v, v, #8; uxtb r1, v` after checking the parameter has a CC. For a
+@ matrix amount v becomes ((v >> 8) + 128) >> 1, which equals
+@ (value + 0x8000) >> 9: -100%, 0 and +100% go out as 0, 64 and 127.
+        .macro  SEND_CC id, value
+        asrs    \value, \value, #8
+        IF_MATRIX_ID r1, \id            @ r1 is free: the displaced uxtb sets it
+        itt     lo
+        addlo   \value, #128
+        asrlo   \value, \value, #1
+        uxtb    r1, \value
+        bx      lr
+        .endm
 
+@ Replaces `asrs r5, r5, #8; uxtb r1, r5` at 0x08023A02 in the listener that
+@ sends a parameter's CC when it changes (r3 = id, r5 = value).
         .global matrix_cc_out
         .thumb_func
 matrix_cc_out:
-        ubfx    r1, r3, #8, #8
-        subs    r1, #FIRST_ROW
-        cmp     r1, #ROWS - 1
-        bhi     1f
-        uxtb    r1, r3
-        cmp     r1, #SOURCES - 1
-        bhi     1f
-        add     r5, r5, #0x8000
-        lsrs    r5, r5, #9
-        b       2f
-1:      asrs    r5, r5, #8
-2:      uxtb    r1, r5
+        SEND_CC r3, r5
+
+@ Replaces `asrs r7, r7, #8; uxtb r1, r7` at 0x08026874 in the set-and-send
+@ function 0x0802682C (r5 = id, r7 = value), which stock already points at
+@ matrix ids (0x08026B9C).
+        .global matrix_send_cc
+        .thumb_func
+matrix_send_cc:
+        SEND_CC r5, r7
+
+@ ------------------------------------------------------------------ Local Off
+@ Stock: with Local Control off, a panel write to a parameter whose CC byte
+@ isn't 0x7F is refused (only MIDI may set it). Matrix cells had no CC, so
+@ they were always written; they still are. Each replaces
+@ `ldrb r3, [r3, idx]; cmp r3, #0x7F`; the caller branches on these flags.
+        .macro  LOCAL_GATE group, index
+        ldrb    r3, [r3, \index]
+        sub     r12, \group, #FIRST_ROW
+        cmp     r12, #ROWS - 1
+        it      ls
+        movls   r3, #NO_CC
+        cmp     r3, #NO_CC
         bx      lr
+        .endm
+
+@ 0x08023C82 in the setter 0x08023C40 (r4 = group, r7 = index).
+        .global matrix_local
+        .thumb_func
+matrix_local:
+        LOCAL_GATE r4, r7
+
+@ 0x08024756 in the setter 0x0802473C (r6 = group, r5 = index).
+        .global matrix_local2
+        .thumb_func
+matrix_local2:
+        LOCAL_GATE r6, r5
 
         .ltorg
 
 @ ------------------------------------------------------------------ CCs
 @ One CC per cell, rows in matrix order, sources CyclEnv, Env, LFO, Press,
 @ Key/Arp; 0 = no CC. All are unused by stock and avoid the CCs MIDI gives a
-@ fixed meaning (bank, mod wheel, data entry, volume, expression, pedals,
+@ fixed meaning (bank, mod wheel, data entry, volume, expression, the 14-bit
+@ LSBs, pedals, portamento, high-resolution velocity, effect depths,
 @ RPN/NRPN, channel mode) and the Release patch's default CC 72.
 
         .balign 4
@@ -125,7 +177,7 @@ matrix_ccs:
 ccs_table:                              @ local alias: adr to a global label needs a relocation
         .byte   14,  15,  20,  21,  22  @ Pitch
         .byte   25,  27,  30,  31,   3  @ Wave
-        .byte   85,  86,  87,  88,  89  @ Timbre
+        .byte   85,  86,  87,  80,  89  @ Timbre
         .byte   90,   0, 104, 107, 108  @ Cutoff (Env: CC 26, Filter Amt, in stock)
         .byte  109, 110, 111, 112, 113  @ Assign 1
         .byte  114, 115, 116, 117, 118  @ Assign 2

@@ -92,12 +92,23 @@ def combine(spec: dict, parts: list[dict]) -> dict:
     for (_, end, a), (start, _, b) in itertools.pairwise(regions):
         if start < end:
             raise ValueError(f"regions of {a} and {b} overlap")
-    sites = [int(x["site"], 16) for p in parts for x in p["hooks"] + p["edits"]]
-    if len(sites) != len(set(sites)):
-        raise ValueError("two parts patch the same site")
+    spans = sorted((start, start + n, p["name"]) for p in parts for start, n in _site_spans(p))
+    for (_, end, a), (start, _, b) in itertools.pairwise(spans):
+        if start < end:
+            raise ValueError(f"{a} and {b} patch overlapping bytes at {start:#x}")
+    for start, end, name in spans:
+        for r_start, r_end, owner in regions:
+            if owner != name and start < r_end and r_start < end:
+                raise ValueError(f"{name} patches {start:#x}, inside the code region of {owner}")
     symbols = [s for p in parts for s in p["symbols"]]
     if len(symbols) != len(set(symbols)):
         raise ValueError("two parts export the same symbol")
+    options = [k for p in parts for k in p["options"]]
+    if len(options) != len(set(options)):
+        raise ValueError("two parts declare the same option")
+    tables = [p["cc_table"] for p in parts if "cc_table" in p]
+    if len(tables) > 1:
+        raise ValueError("more than one part has a CC table")
     keys = ("name", "region", "source", "source_sha256", "symbols", "code")
     return {
         "name": spec["name"],
@@ -106,8 +117,15 @@ def combine(spec: dict, parts: list[dict]) -> dict:
         "hooks": [h for p in parts for h in p["hooks"]],
         "edits": [e for p in parts for e in p["edits"]],
         "options": {k: v for p in parts for k, v in p["options"].items()},
-        **next(({"cc_table": p["cc_table"]} for p in parts if "cc_table" in p), {}),
+        **({"cc_table": tables[0]} if tables else {}),
     }
+
+
+def _site_spans(part: dict) -> list[tuple[int, int]]:
+    """(site, length) of every hook and edit: 4 bytes, a word, a movw, or a string's declared length."""
+    return [(int(h["site"], 16), 4) for h in part["hooks"]] + [
+        (int(e["site"], 16), int(e["length"]) if e["kind"] == "string" else 4) for e in part["edits"]
+    ]
 
 
 def main(stem: str) -> None:

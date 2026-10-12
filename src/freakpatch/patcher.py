@@ -26,6 +26,12 @@ MAIN_BASE = 0x0800C000
 """Flash address of the first payload byte of the main image."""
 STOCK_CCS = frozenset({2, 5, 9, 10, 12, 13, 23, 24, 26, 28, 29, 83, 91, 92, 93, 94, 102, 103, 105, 106})
 """MIDI CCs the stock firmware maps to parameters (read from the constructed parameter object)."""
+RESERVED_CCS = frozenset(
+    {0, 1, 4, 6, 7, 8, 10, 11, *range(32, 64), *range(64, 70), 84, 88, *range(91, 102), *range(120, 128)}
+)
+"""CCs MIDI gives a fixed meaning: bank select, mod wheel, foot, data entry, volume, balance, pan, expression, the
+14-bit LSBs, pedals, portamento control, high-resolution velocity, effect depths, data increment and RPN/NRPN, and
+channel mode. A patch's CC table must not use them."""
 
 
 class PatchError(ValueError):
@@ -96,10 +102,14 @@ class Patch:
     def load(cls, name: str) -> Patch:
         raw = json.loads(resources.files("freakpatch.patches").joinpath(f"{name}.json").read_text())
         table = raw.get("cc_table")
+        parts = tuple(Part.from_spec(p) for p in raw.get("parts", [raw]))
+        symbols = [s for part in parts for s in part.symbols]
+        if len(symbols) != len(set(symbols)):
+            raise PatchError(f"{name}: two parts export the same symbol")
         return cls(
             name=raw["name"],
             description=raw.get("description", ""),
-            parts=tuple(Part.from_spec(p) for p in raw.get("parts", [raw])),
+            parts=parts,
             hooks=tuple(Hook(int(h["site"], 16), h["kind"], h["symbol"]) for h in raw["hooks"]),
             edits=tuple(Edit.from_spec(e) for e in raw["edits"]),
             options=raw["options"],
@@ -127,20 +137,23 @@ class Patch:
         return self.parts[0]
 
     def part_of(self, symbol: str) -> Part:
-        return next(part for part in self.parts if symbol in part.symbols)
+        for part in self.parts:
+            if symbol in part.symbols:
+                return part
+        raise PatchError(f"{self.name} has no symbol {symbol!r}")
 
     def address(self, symbol: str) -> int:
-        return self.part_of(symbol).region[0] + self.symbols[symbol]
+        part = self.part_of(symbol)
+        return part.region[0] + part.symbols[symbol]
 
-    def mapped_ccs(self, code: dict[int, bytes] | None = None) -> set[int]:
-        """The CCs in the patch's CC table (``code``: patched code per region start, if not the shipped code)."""
+    def mapped_ccs(self) -> list[int]:
+        """The CCs in the patch's CC table, in table order, without its 0 (no CC) entries."""
         if self.cc_table is None:
-            return set()
+            return []
         symbol, length = self.cc_table
         part = self.part_of(symbol)
-        data = (code or {}).get(part.region[0], part.code)
         offset = part.symbols[symbol]
-        return set(data[offset : offset + length]) - {0}
+        return [cc for cc in part.code[offset : offset + length] if cc]
 
     def touched(self) -> set[int]:
         """Payload offsets this patch may change."""
@@ -161,12 +174,22 @@ def check_latest(raw: bytes) -> None:
         )
 
 
-def _release_cc(value: int, taken: set[int]) -> int:
+def _release_cc(value: int, taken: list[int]) -> int:
     if not 1 <= value <= 119 or value in STOCK_CCS:
         raise PatchError(f"CC {value} is not available: use 1-119, not one of the stock CCs {sorted(STOCK_CCS)}")
     if value in taken:
         raise PatchError(f"CC {value} is not available: the patch maps it to the mod matrix")
     return value
+
+
+def _check_cc_table(patch: Patch, release_cc: int | None) -> None:
+    """The patch's CC table: unique CCs that collide with nothing stock, MIDI or the Release CC uses."""
+    ccs = patch.mapped_ccs()
+    if len(ccs) != len(set(ccs)):
+        raise PatchError(f"{patch.name}: its CC table maps a CC twice")
+    clash = set(ccs) & (STOCK_CCS | RESERVED_CCS | ({release_cc} if release_cc is not None else set()))
+    if clash or any(cc > 119 for cc in ccs):
+        raise PatchError(f"{patch.name}: its CC table uses CCs it must not: {sorted(clash) or ccs}")
 
 
 def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
@@ -189,6 +212,9 @@ def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
         symbol = str(patch.options["release_cc"]["symbol"])
         part = patch.part_of(symbol)
         codes[part.region[0]][part.symbols[symbol]] = _release_cc(release_cc, patch.mapped_ccs())
+    elif "release_cc" in patch.options:
+        release_cc = int(str(patch.options["release_cc"]["default"]))
+    _check_cc_table(patch, release_cc)
     for start, code in codes.items():
         payload[start - MAIN_BASE : start - MAIN_BASE + len(code)] = code
 
