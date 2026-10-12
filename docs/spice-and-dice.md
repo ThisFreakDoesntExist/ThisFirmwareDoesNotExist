@@ -2,6 +2,8 @@
 
 Spice and Dice are the arpeggiator and sequencer's randomisers. This page is how they work in stock 5.0.0.2084, read from the firmware.
 
+Picking this up to dig further? [How this was found](#how-this-was-found) shows the route from a string to the engine, [Reproduce it](#reproduce-it) has the commands, and [Open questions](#open-questions) lists what's left, each with its starting address. Parameters work as described in [Main image: Parameters](main-image.md#parameters), and the tools are set up as in [Reverse-engineering setup](reverse-engineering-setup.md).
+
 ## In short
 
 - **The randomness is a fixed table, not a dice roll per note.** The firmware keeps three tables of 64 random values. A step counter walks through them as the arp or sequencer plays, so a given Spice setting gives the same variation every time the pattern comes round.
@@ -125,7 +127,7 @@ out = (S * (eff(T, step) - 128)) >> 8, folded into -127..127
 
 ### Checked under emulation
 
-A Python model of the gate and octave rules above was run against the stock `FUN_08029DAC` and `FUN_08029F08` under Unicorn. It used 400 random cases mixing Spice and Dice amounts, steps, gate lengths and fresh rolls, and matched every one.
+The gate and octave rules above were checked against the stock `FUN_08029DAC` and `FUN_08029F08` under Unicorn. 400 random cases mixed Spice and Dice amounts, steps, gate lengths and fresh rolls, and every one matched. [Reproduce it](#reproduce-it) shows how to call these functions yourself.
 
 ## The touch strip
 
@@ -171,3 +173,86 @@ Details worth knowing:
 | `FUN_08029180` | Render arp + Spice into a sequence slot |
 | `FUN_0803F254` / `FUN_0803F278` / `FUN_0803F56C` | Touch strip press / release / slide |
 | `FUN_08012C50` | Parameter listener that feeds Spice and Dice into the engine |
+
+## Addresses in flash
+
+| Address | What |
+|---|---|
+| `0x08062938` / `0x08062940` | Strings `"Spice"` and `"Dice"` (key and display name share one string) |
+| `0x08062B10` | String `"XiceRst"` |
+| `0x0800FB30` / `0x0800FB34` | Pointers to `"Spice"` and `"Dice"` in the parameter constructor's literal pool |
+| `0x08010AF0` | Pointer to `"XiceRst"` in the same constructor |
+| `0x08029C3C` / `0x08029C40` | Random generator increment `0x3619636B` / multiplier `0x0BB38435`, as used at boot by `FUN_08029AF8` |
+| `0x08029D9C` / `0x08029DA0` | The same increment / multiplier, as used by Dice rolls in `FUN_08029C54` |
+| `0x08029E54` | `0x51EB851F`, the compiler's divide-by-100 constant in the gate formula |
+
+Each random-generator constant appears twice, once for boot and once for rolls. A patch that changes the randomness has to change both copies.
+
+## How this was found
+
+The route works for most features that have a parameter.
+
+1. **Find the name.** `"Spice"` and `"Dice"` are plain strings at `0x08062938` and `0x08062940`, next to the other Arp parameter names (`Swing` before them, `Dir` after them).
+2. **Find who points at it.** The only pointers to those strings are in the literal pool of the parameter constructor `FUN_0800EB10`, at `0x0800FB30` and `0x0800FB34`.
+3. **Get the parameter id.** Run the constructor under emulation and walk the group tables (see [Parameters](main-image.md#parameters)). That gives `0x0406` for Spice, `0x0407` for Dice and `0x1201` for `XiceRst`, with their CCs.
+4. **Find the code that uses the id.** Decompile every function into one file and grep for the id passed as a function argument. That turns up the touch strip handlers (`FUN_0803F56C`, `FUN_0803F278`), the mode reset (`FUN_0803D270`) and screen code (`FUN_0804FAA0`). Code that reads a parameter by its offset in a value table doesn't show up this way.
+5. **Follow the data.** The strip handlers pass one global object, `0x20003B00`, to the engine. Scanning the image for that pointer finds every function with it in a literal pool, including the listener `FUN_08012C50` that step 4 missed. Reading the functions that take the object gives the whole engine: the generator, the gate and octave functions, and the step counter.
+6. **Check under emulation.** Call the engine's functions directly and compare them with the formulas.
+
+## Reproduce it
+
+Set up the Ghidra project as in [Reverse-engineering setup](reverse-engineering-setup.md), including the seeding pass, then:
+
+```sh
+H="$GHIDRA/support/analyzeHeadless"
+ARGS="/tmp/mf-proj mf -process main500.bin -noanalysis -readOnly -scriptPath tools/ghidra"
+
+# Strings and their references, who calls the generator, and the gate function
+"$H" $ARGS -postScript MfQuery.java out.txt 'str:^(Spice|Dice|XiceRst)$' xref:0x08029C54 dec:0x08029DAC
+
+# Every function in one file, then find code that passes the Spice or Dice id
+"$H" $ARGS -postScript MfDecompileAll.java all.c
+grep -nE '[(,] ?0x40[67][,)]' all.c
+```
+
+`str:` only finds strings Ghidra defined, and it never defined `"Dice"`. If a name is missing, search the raw image instead (snippet below).
+
+To call the engine directly with [`tests/emu.py`](../tests/emu.py), run this from the repository root:
+
+```python
+import re, sys
+from pathlib import Path
+sys.path.insert(0, "tests")
+from emu import Emu
+from freakpatch import mff
+
+update = mff.Update.from_bytes(Path("microfreak_Firmware_Update_5.0.0.2084.mff").read_bytes())
+payload = mff.main_payload(update.read(update.main_name))
+emu = Emu(payload, construct=False)
+
+ENGINE = 0x2000_3B00
+emu.call(0x0802_9AF8, ENGINE)              # boot init: seed, first roll, bake
+emu.write(ENGINE, bytes([0, 128]))         # Dice fade 0, Spice 128
+for step in range(16):
+    r0 = emu.call(0x0802_9DAC, ENGINE, 50, step)  # gate for a 50% step
+    kind = {0: "off", 1: "on", 3: "tie"}[r0 & 0xFF]
+    octave = emu.call(0x0802_9F08, ENGINE, step)
+    print(step, kind, r0 >> 16 if kind == "on" else "", octave - (1 << 32) if octave >> 31 else octave)
+
+# Strings Ghidra never defined
+print([hex(0x0800_C000 + m.start()) for m in re.finditer(rb"(?<=\0)Dice\0", payload)])
+```
+
+At Spice 128 this prints gates of 1–42% with step 5 silent, then `['0x8062940']`. Roll with `emu.call(0x0802_9C54, ENGINE, 1)` and bake with `emu.call(0x0802_9C54, ENGINE, 0)`.
+
+## Open questions
+
+| Question | Start at |
+|---|---|
+| What reads the two extra Spice outputs? | Bytes `+0x38`/`+0x39` of the object written by `FUN_0804DE40` / `FUN_0804DE48`, from `FUN_08029398` |
+| What sets follow mode, so the Spice counter tracks the sequencer? | Writers of engine byte `+0x18A` (`0x20003C8A`) |
+| Which parameter sets the loop length? | The value at listener offset `+0x5A` in `FUN_080135D8`, before the call to `FUN_08029FC8` |
+| What does the touch strip's mode 2 (the default) do? | `FUN_0803EFF0`, called from the slide handler `FUN_0803F56C` |
+| Which gesture renders a spiced arp into a sequence? | The calls to `FUN_08029180` in the Shift handler `FUN_08043224` (`0x0803D99C`) |
+| Is the random generator ever reseeded, or is the run of rolls the same every power-on? | Writers of engine word `+0x184` (`0x20003C84`); on hardware, roll Dice the same number of times after two power-ons and compare |
+| What makes `XiceRst` restart the pattern: every new note, or only the first held key? | The call to `FUN_08029FA8` in `FUN_08048524` |
