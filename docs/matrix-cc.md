@@ -2,7 +2,7 @@
 
 [`patches/matrix_cc.S`](../patches/matrix_cc.S) and [`patches/matrix-cc.hooks.json`](../patches/matrix-cc.hooks.json) put every mod-matrix amount on its own MIDI CC, in both directions. The shipped build is **`release-matrix`**: the [Release patch](release-patch.md) and this, together in one file ([`patches/release-matrix.hooks.json`](../patches/release-matrix.hooks.json)). `matrix-cc` on its own exists too.
 
-**Status: verified under emulation, not yet flashed.** The default `release` build is still the hardware-tested one.
+**Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
 ## What the matrix is in the firmware
 
@@ -91,13 +91,28 @@ None is a stock CC or the Release CC, and none is one MIDI gives a fixed meaning
 - **Unit emulation** (`tests/test_matrix_cc.py`), running the stock functions with the patch in place: every cell's mapping at boot and nothing else changed; incoming CCs through both store paths (Local Control on and off), matching stock's own Filter Amt conversion for all 128 values; outgoing CCs from the listener (queued and immediate) and from set-and-send; Local Off writes; every other parameter unchanged against the hardware-tested Release build.
 - **Whole firmware** (a local, unpublished emulator of the full booted firmware), a booted synth from a snapshot: a matrix amount set the way the matrix screen sets it goes out on USB as `B0 0E 00/20/40/60/7F` for −100/−50/0/+50/+100%; stock sends nothing. With Local Off it is stored and nothing is sent, as in stock. Set-and-send sends the same values (before the fix it sent `80`, `C0`, `00`, `40`, `7F`). The snapshot was booted on stock firmware, so the probe wrote `matrix_boot`'s table entries itself.
 
+## Hardware results
+
+The default `release-matrix` build, flashed on a MicroFreak with 5.0.0.2084, driven and recorded over USB MIDI and an audio interface:
+
+| Check | Result |
+|---|---|
+| Boot, Decay and Shift + Decay (Release) | as with the Release build |
+| CC 14 = 96 into Pitch ← CyclEnv | stored as +51.2% (computed: 51.18%); CC 14 = 32 shows −49.6% (computed: −49.6%) |
+| Sound follows an incoming matrix CC | yes, at once: holding C3, CC 14 = 64 gives a steady 131 Hz, CC 14 = 127 and = 0 give heavy pitch modulation |
+| Matrix screen and LEDs follow an incoming matrix CC | no: they update when the matrix cursor next passes the cell. **Stock does the same** for its own MIDI write to a matrix cell (CC 26 → Env → Cutoff), and shows no popup for any incoming CC (checked with CC 23) |
+| Turning a matrix amount on the panel | CC 14 goes out 64 → 127 → 0 in single steps, nothing else interleaved |
+| Loading presets | no CCs sent |
+| Local Control off | matrix amounts still change on the panel; no CC is sent (keyboard notes are) |
+| Stock knobs | Cutoff (23), Filter Amt (26), Sustain (29), Release (72), Attack (105), Decay (106) send their CCs over their full range |
+
 ## Combined builds
 
 A patch spec with `"combine": [...]` is built from other single-region specs: each part keeps its own region, code and symbols. `build_patch.py` refuses overlapping regions, two parts patching overlapping bytes, a part patching inside another part's code region, a symbol or option declared twice, and more than one CC table. The shipped JSON lists the parts under `"parts"`. Single-region patches are unchanged, so `release.json` and the hardware-tested Release file are byte for byte as before. `test_build.py` checks every shipped JSON, combined ones included, against a fresh build of its specs.
 
 ## Not yet checked
 
-- On hardware: the matrix screen and LEDs when a CC changes a cell, and whether loading a preset now sends the matrix CCs (the listener runs on preset loads; Send CCs gates it).
+- Redrawing the matrix LEDs after an incoming CC without the screen popup (stock's broadcast `0x0803AE30` to the UI listener `0x20000A10` redraws, but always as the full "Matrix Amount" popup, which stock never shows for incoming CCs).
 - Whether stock's unmapped-CC listeners (`0x08047AC8`, objects at `0x20000C10`/`0x20000C14`) act on any of the chosen CCs. A mapped CC no longer reaches them.
 - What settings byte `+0x47` is (it gates set-and-send; the surrounding code loops over four tracks, likely the sequencer's modulation lanes).
 - The three `Dest` parameters (index 5) have no CC. Mapping them would let a DAW change where Assign 1–3 point.
