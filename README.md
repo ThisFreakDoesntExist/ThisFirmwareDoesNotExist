@@ -12,7 +12,7 @@ Want to go further than one knob? ThisFirmwareDoesNotExist also documents the st
 
 Absolutely. Claude Code did all the work. I won't lie. I read the code. Tested it. Understood it, but the work is all Claude Codes over maybe 1-2 sessions with Opus 5.5. If you hate it, fair enough. But I want to be transparent. Firmware is _not_ my day job. But my aim is for this to open up a pool of more intelligent, more creative, and more hardware aware folk to take a stap at doing some fun stuff with the Microfreak.
 
-## The Release patch
+## The patches
 
 The MicroFreak's amp envelope makes one knob, **Dec/Rel**, do two jobs. Decay and release have been sharing it for years. This patch gives them separate rooms:
 
@@ -22,15 +22,29 @@ The MicroFreak's amp envelope makes one knob, **Dec/Rel**, do two jobs. Decay an
 - Release is **saved in presets**. Presets saved on stock firmware load with Release = Decay and sound exactly as before. Presets saved with the patch still load on stock firmware, which ignores the extra field. MIDI Control Center backup and restore works.
 - Modulation applied to Decay scales Release in the same proportion.
 
-Tested on real hardware, not just in theory, with firmware **5.0.0.2084**, the latest release.
+On stock firmware the mod matrix has exactly one MIDI CC. Filter Amt (CC 26), which is really the Env to Cutoff spot in the matrix. The rest of the matrix you can't automate at all. `--patch release-matrix` fixes that. You get the Release patch plus a CC for the other 34 matrix amounts, in and out.
+
+- CC 0 is -100%, 64 is 0, 127 is +100%. Same math the firmware already uses for Filter Amt.
+- Turn a matrix amount on the synth and it sends the CC. Send the CC and the amount changes.
+- The matrix LEDs don't update when a CC comes in. You hear the change right away, but the LED won't show it until you scroll over that spot in the matrix. Stock does the same thing with Filter Amt, so I left it alone. MIDI changes the value but never tells the screen to redraw. More on that in [docs/matrix-cc.md](docs/matrix-cc.md#why-incoming-ccs-dont-light-the-matrix).
 
 Could it do more? Sure. But thats your job and the point of this repo!
 
-## Release + the mod matrix over MIDI CC
+Tested on hardware with 5.0.0.2084 ([results](docs/matrix-cc.md#hardware-results)).
 
-`--patch release-matrix` builds everything above **plus** every mod-matrix amount on its own MIDI CC, sent and received, so a DAW can record and automate the matrix. CC 0–127 is −100%…+100%, CC 64 is exactly 0, and values round-trip exactly. Env → Cutoff keeps its stock CC 26 (it's the Filter Amt knob). Editing the matrix on the synth sends its CCs; with Local Control off, matrix edits apply locally and send nothing, as in stock. The CC for each cell is in [docs/matrix-cc.md](docs/matrix-cc.md#ccs).
+### Matrix CC map
 
-Tested on hardware ([results](docs/matrix-cc.md#hardware-results)). As in stock, the matrix screen and LEDs catch up with an incoming CC when you next move through the matrix; the sound changes at once. The default build stays the Release patch alone.
+Rows are destinations, columns are sources. None of these are used by stock, none clash with Release on 72, and none are CCs MIDI already reserves for something (mod wheel, sustain, bank select, that kind of thing). If one clashes with your setup, open an issue. `--release-cc` won't let you pick one of these.
+
+| Destination / Source | CyclEnv |             Env | LFO | Press | Key/Arp |
+| -------------------- | ------: | --------------: | --: | ----: | ------: |
+| Pitch                |      14 |              15 |  20 |    21 |      22 |
+| Wave                 |      25 |              27 |  30 |    31 |       3 |
+| Timbre               |      85 |              86 |  87 |    80 |      89 |
+| Cutoff               |      90 | 26 (Filter Amt) | 104 |   107 |     108 |
+| Assign 1             |     109 |             110 | 111 |   112 |     113 |
+| Assign 2             |     114 |             115 | 116 |   117 |     118 |
+| Assign 3             |     119 |              75 |  76 |    77 |      78 |
 
 ## Use
 
@@ -59,12 +73,12 @@ cd ThisFirmwareDoesNotExist
 PYTHONPATH=src python3 -m freakpatch path/to/microfreak_Firmware_Update_5.0.0.2084.mff -o microfreak_release.mff
 ```
 
-| Option           | Meaning                                                                                                                                                                |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-o OUT.mff`     | where to write the patched file (default: next to the input, named `<input>_<patch>.mff`)                                                                              |
-| `--release-cc N` | MIDI CC for Release instead of 72. Must be 1–119 and not one of the CCs the stock firmware already uses.                                                               |
+| Option           | Meaning                                                                                                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-o OUT.mff`     | where to write the patched file (default: next to the input, named `<input>_<patch>.mff`)                                                                                                                                                                           |
+| `--release-cc N` | MIDI CC for Release instead of 72. Must be 1–119 and not one of the CCs the stock firmware already uses.                                                                                                                                                            |
 | `--patch NAME`   | `release` (default), `release-matrix` (Release plus the mod matrix over MIDI CC), `matrix-cc` (the matrix alone), or one of the hardware diagnostics `diag-region` / `diag-hook` (see [docs/writing-a-patch.md](docs/writing-a-patch.md#test-on-hardware-in-steps)) |
-| `--list`         | describe the available patches                                                                                                                                         |
+| `--list`         | describe the available patches                                                                                                                                                                                                                                      |
 
 `freakpatch` is a picky eater. It accepts **only** the official 5.0.0.2084 file (SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`). It refuses anything else, including a file it has already patched: one freaking per file. It also checks its own output: same length as stock, and nothing changed except the bytes the patch declares.
 
@@ -103,14 +117,14 @@ No surprises in the output either: it's deterministic. The default Release build
 
 ### Repository layout
 
-| Path                            | Contents                                                                                                                                                   |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/freakpatch/`               | The `freakpatch` CLI and library: `mff.py` (update container), `thumb.py` (Thumb-2 branch encoders), `patcher.py` (hash gate, apply, self-check), `cli.py` |
-| `src/freakpatch/patches/*.json` | Built patches: our code bytes, symbols, hook sites, edits                                                                                                  |
+| Path                            | Contents                                                                                                                                                                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/freakpatch/`               | The `freakpatch` CLI and library: `mff.py` (update container), `thumb.py` (Thumb-2 branch encoders), `patcher.py` (hash gate, apply, self-check), `cli.py`                              |
+| `src/freakpatch/patches/*.json` | Built patches: our code bytes, symbols, hook sites, edits                                                                                                                               |
 | `patches/`                      | Patch sources: `release.S` + `release.hooks.json`, `matrix_cc.S` + `matrix-cc.hooks.json`, the combined `release-matrix.hooks.json`, and the diagnostics `diag.S` + `diag-*.hooks.json` |
-| `tools/build_patch.py`          | Assembles a patch with clang into the shipped JSON                                                                                                         |
-| `tools/ghidra/`                 | Headless Ghidra scripts for exploring the stock image                                                                                                      |
-| `tests/`                        | Unit tests, a Unicorn harness that runs single stock functions (`emu.py`), and the raw-byte reference scanner (`refscan.py`)                               |
+| `tools/build_patch.py`          | Assembles a patch with clang into the shipped JSON                                                                                                                                      |
+| `tools/ghidra/`                 | Headless Ghidra scripts for exploring the stock image                                                                                                                                   |
+| `tests/`                        | Unit tests, a Unicorn harness that runs single stock functions (`emu.py`), and the raw-byte reference scanner (`refscan.py`)                                                            |
 
 ### Develop
 

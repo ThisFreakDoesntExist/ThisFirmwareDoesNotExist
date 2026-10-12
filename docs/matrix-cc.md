@@ -51,6 +51,25 @@ Ten sites were found by disassembling the whole image and listing every load of 
 
 With Local Control off (settings byte `+0x42` = 0), the setters `0x08023C40` (for panel writes, source 0) and `0x0802473C` refuse to store a parameter whose CC byte isn't `0x7F`: only MIDI may set it. Stock matrix cells have no CC, so they were always written. Giving them CCs would make the matrix dead locally with Local Off, so the patch keeps them exempt: with Local Off, matrix edits apply on the synth and send nothing, exactly as in stock.
 
+The alternative, matching how the panel knobs behave under Local Off (send the CC, don't apply it, let the DAW echo it back), would need a sender for that case: the listener above only runs with Local Control on. It isn't implemented.
+
+## Why incoming CCs don't light the matrix
+
+**Observed on hardware:** a matrix CC changes the sound at once, but the matrix LED and screen stay as they were until the matrix cursor passes that cell. **Stock does the same.** CC 26 changes Filter Amt and, through it, Env → Cutoff (`0x0D01`), but the Cutoff / Env LED doesn't change; scrolling over the cell lights it. Turning the physical Filter Amt knob lights it at once. Stock also shows no popup for any incoming CC (checked with CC 23, Cutoff).
+
+**Why:** the panel and MIDI reach a parameter by different paths, and only the panel path tells the display.
+
+| Path | What runs | Display |
+|---|---|---|
+| Panel knob or matrix screen | the pot/encoder handler or the matrix screen (`FUN_0803AE90`) sets the value, then `0x0803AE30(obj, id)` **broadcasts** a change event to the six listeners at `obj+0x10…+0x24` | the UI listener `0x20000A10` (handler `0x0804ED94`) records the parameter and the UI tick draws its popup and LEDs |
+| Incoming CC | the MIDI handler stores through `0x0803F2C4` (Local Control on) or `0x08023C9C` (off), then the plain setter `0x08023C40` | the setter notifies only groups whose notify bit (`obj+0x274 + group*2`) is set. Only group 0 has one, so a matrix group (10–16), Filter Amt's group 6 and Cutoff's group 1 notify nobody |
+
+The sound follows anyway because the voices read the stored values themselves (value pool A is copied into every voice, see the [Release patch](release-patch.md#value-storage-obj0x11da)). The matrix LEDs come back when the matrix controller's tick (`0x0803AFB0`, run from the main loop at `0x08024F42`) redraws around the cursor, which is why scrolling over a cell fixes it.
+
+**Under emulation** (booted firmware, patched image): after an incoming CC 14 the main CPU sends **0 bytes** to the I/O chips. Broadcasting the same change with `0x0803AE30` sends 176 bytes, all from the UI listener `0x20000A10`; the other five listeners (including MIDI CC out) send nothing. Decoded, they're the screen popup: `CycEnv`, `Pitch`, `100`, `Click to browse`, `Matrix Amount`. That's byte for byte what the matrix screen sends when you edit the cell by hand. The matrix LED chip isn't modelled on that link, so whether those frames also carry the LEDs wasn't visible.
+
+**A fix, not implemented:** after storing a matrix CC, notify only the UI listener `0x20000A10` (never the CC-out listener, so nothing echoes back). That should light the LEDs, but it also pops up "Matrix Amount" on every incoming CC, which stock never does for any parameter and which would flicker constantly under DAW automation. An LED-only refresh needs the LED path reverse-engineered first.
+
 ## The patch
 
 | Hook | Site | Was | Does |
