@@ -6,6 +6,7 @@ Spice and Dice are the arpeggiator and sequencer's randomisers. This page is how
 
 - **The randomness is a fixed table, not a dice roll per note.** The firmware keeps three tables of 64 random values. A step counter walks through them as the arp or sequencer plays, so a given Spice setting gives the same variation every time the pattern comes round.
 - **Spice is how much of that table you hear.** At 0 nothing changes. As it rises, the table increasingly takes over three things: whether a step plays, how long its gate is, and whether it jumps an octave up or down.
+- **You play both from the touch strip** while an arp or sequence is running. Sliding raises or lowers the amount.
 - **Dice makes a new table.** It rolls fresh random values and lets you fade from the old table to the new one. When you let go, the table you ended on is kept.
 - **The random pattern loops every 16 steps at boot.** The loop length can be changed to anything up to 63 steps; [which setting changes it](#the-step-counter) wasn't pinned down.
 - **Spice changes three things: gate length, rests and octave.** It doesn't touch pitch within the octave or velocity. Two more Spice-scaled values go to another part of the firmware each step; where they end up wasn't traced.
@@ -126,9 +127,9 @@ out = (S * (eff(T, step) - 128)) >> 8, folded into -127..127
 
 A Python model of the gate and octave rules above was run against the stock `FUN_08029DAC` and `FUN_08029F08` under Unicorn. It used 400 random cases mixing Spice and Dice amounts, steps, gate lengths and fresh rolls, and matched every one.
 
-## The control
+## The touch strip
 
-One control drives Spice and Dice. It has press, slide and release handlers, and a mode byte at `0x20003706` (the object at `0x20003704`, offset 2) with one LED per mode (`0x110D` + mode). It isn't one of the panel pots in the `conf` table. It's most likely the touch strip (inferred).
+Spice and Dice are played from the **touch strip** while an arp or sequence is running: sliding raises or lowers the Spice or Dice amount (verified on hardware). In the firmware the strip has press, slide and release handlers, and a mode byte at `0x20003706` (the object at `0x20003704`, offset 2) with one LED per mode (`0x110D` + mode).
 
 | Mode | Slide | Press | Release |
 |---|---|---|---|
@@ -168,5 +169,5 @@ Details worth knowing:
 | `FUN_08029FC8` | Set loop length (values under 64), called from `FUN_080135D8` |
 | `FUN_080290DC`, `FUN_080292D4` | Advance the step counter |
 | `FUN_08029180` | Render arp + Spice into a sequence slot |
-| `FUN_0803F254` / `FUN_0803F278` / `FUN_0803F56C` | Control press / release / slide |
+| `FUN_0803F254` / `FUN_0803F278` / `FUN_0803F56C` | Touch strip press / release / slide |
 | `FUN_08012C50` | Parameter listener that feeds Spice and Dice into the engine |
