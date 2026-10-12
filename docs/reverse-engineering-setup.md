@@ -12,7 +12,10 @@ It prints `info.json` and each image's size and checksum bytes, and writes the m
 
 ## Ghidra (headless)
 
-Tested with Ghidra 12.1.4 and OpenJDK 21. Ghidra refuses project paths that contain a dot-directory (such as `~/.cache/...`), so use a plain path.
+Tested with Ghidra 12.1.4 and OpenJDK 21. Two things stop it before analysis starts:
+
+- **It needs to find Java.** Headless mode can't ask which JDK to use, so without one it stops with `Unable to prompt user for JDK path, no TTY detected`. Homebrew installs OpenJDK 21 without linking it into macOS's Java lookup, so point `JAVA_HOME` at it: `export JAVA_HOME="$(brew --prefix)/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"`.
+- **No dot-directories in the project path.** Ghidra refuses any project path with a dot-directory in it (`Path element starting with '.' is not permitted`). That includes `~/.cache/...` and git worktrees under `.claude/worktrees/`, so keep the project in a plain path such as `/tmp/mf-proj`.
 
 ```sh
 GHIDRA=/path/to/ghidra   # e.g. $(brew --prefix ghidra)/libexec on macOS with Homebrew
@@ -31,6 +34,10 @@ GHIDRA_HEADLESS_MAXMEM=6G "$H" /tmp/mf-proj mf \
 # 3. Ask questions, read-only: decompile, cross-references, strings, disassembly
 "$H" /tmp/mf-proj mf -process main500.bin -noanalysis -readOnly -scriptPath tools/ghidra \
   -postScript MfQuery.java out.txt dec:0x0802F3BC xref:0x40015C04 'str:Sample.Rate' dis:0x0802FEA0:30
+
+# 4. Decompile every function into one file, then search it
+"$H" /tmp/mf-proj mf -process main500.bin -noanalysis -readOnly -scriptPath tools/ghidra \
+  -postScript MfDecompileAll.java all.c
 ```
 
 | Script | Purpose |
@@ -39,6 +46,11 @@ GHIDRA_HEADLESS_MAXMEM=6G "$H" /tmp/mf-proj mf \
 | `MfSeed.java` | Creates a function at every flash word that is a Thumb pointer to a `push` prologue. This finds vtable-only methods such as the oscillator engines' render functions, which the default analysis misses; it raises the function count from 1,162 to 1,247. |
 | `MfExport.java` | Writes `functions.tsv` (entry, size, caller count, name) and `strings.tsv` (address, text, cross-references) |
 | `MfQuery.java` | `dec:ADDR`, `xref:ADDR`, `str:REGEX`, `dis:ADDR:N`; creates the function first if needed |
+| `MfDecompileAll.java` | Decompiles all 1,247 functions into one text file (about 2.3 MB, a few minutes), each headed `######## <entry> <name>` |
+
+**Searching the decompiled code is usually the fastest way in.** Grep `all.c` for a parameter id, a RAM address or a constant, then map each hit back to the nearest `########` line above it. To find code that passes a parameter id, match it as a function argument (`grep -nE '[(,] ?0x406[,)]' all.c`), since a bare `0x406` also matches unrelated struct offsets. Code that reaches a parameter through its value table by offset doesn't show up this way. To find that code, search for the global object it uses (see [Spice and Dice](spice-and-dice.md#how-this-was-found) for a worked example).
+
+`str:` only finds strings Ghidra defined, and it misses some short ones (`"Dice"` among them). When a name doesn't show up, search the raw image bytes.
 
 After seeding, about 297 KB of the 474 KB image lies inside functions; the rest is mostly tables, strings and float constants. **The listing is still incomplete**: 184 functions have no direct callers, and real callers exist in code Ghidra never decoded. Treat "no references" in Ghidra as a hint, never as proof.
 
