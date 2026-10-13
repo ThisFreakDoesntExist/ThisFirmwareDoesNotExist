@@ -4,7 +4,7 @@
 
 **Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
-Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). That build is emulator-verified only; the hardware results below are for the earlier build. So is the [LED refresh](#the-led-refresh) that came after it.
+Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). The curve change is emulator-verified only. The [LED refresh](#the-led-refresh) that came after it is tested on hardware (build SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`, which includes the curve change), see [LED refresh on hardware](#led-refresh-on-hardware).
 
 ## What the matrix is in the firmware
 
@@ -184,13 +184,20 @@ The default `release-matrix` build, flashed on a MicroFreak with 5.0.0.2084, dri
 | Local Control off | matrix amounts still change on the panel; no CC is sent (keyboard notes are) |
 | Stock knobs | Cutoff (23), Filter Amt (26), Sustain (29), Release (72), Attack (105), Decay (106) send their CCs over their full range |
 
+### LED refresh on hardware
+
+The `release-matrix` build with the [LED refresh](#the-led-refresh) (SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`), flashed on the same MicroFreak, driven over USB MIDI:
+
+| Check | Result |
+|---|---|
+| Every matrix CC, one at a time: all 34 reset to 64, then each cell 127, 1 s, 64, 1 s, in matrix order | every cell's LED lit on 127 and went dark on 64, the right cell each time, no popup |
+
 ## Combined builds
 
 A patch spec with `"combine": [...]` is built from other single-region specs: each part keeps its own region, code and symbols. The combined spec can also list `drop_hooks` (a part's hook sites left stock) and `edits` of its own; an edit with `"image": "oled"` targets the OLED chip's image. `build_patch.py` refuses overlapping regions, two parts patching overlapping bytes, a part patching inside another part's code region, a symbol or option declared twice, and more than one CC table. The shipped JSON lists the parts under `"parts"`. Single-region patches are unchanged, so `release.json` and the hardware-tested Release file are byte for byte as before. `test_build.py` checks every shipped JSON, combined ones included, against a fresh build of its specs.
 
 ## Not yet checked
 
-- The [LED refresh](#the-led-refresh) on hardware: with the Init patch, CC 15 = 127 then 64 should turn the Pitch ← Env LED on, then off, with no popup.
 - What the 16-slot CC table at `0x2001C7C8 + 0x48` is (CC 75–82, 111–118, 119, 70), and whether losing CC 75–78, 80, 111–119 to the matrix breaks it, for example on the Vocoder ([above](#ccs-stock-already-listens-to)). If it matters, remap those 14.
 - What settings byte `+0x47` is (it gates set-and-send; the surrounding code loops over four tracks, likely the sequencer's modulation lanes).
 - The three `Dest` parameters (index 5) have no CC. Mapping them would let a DAW change where Assign 1–3 point.
