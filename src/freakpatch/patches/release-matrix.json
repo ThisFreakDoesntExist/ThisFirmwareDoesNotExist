@@ -1,0 +1,226 @@
+{
+  "name": "release-matrix",
+  "description": "Separate Release plus the mod matrix over MIDI CC, in one build; the envelope curve draws Decay and Release as separate segments.",
+  "parts": [
+    {
+      "name": "release",
+      "region": {
+        "start": "0x0802BB60",
+        "end": "0x0802BD10",
+        "was": "console 'flag', 'help' and 'gpio' handlers, retired by the slot edits"
+      },
+      "source_sha256": "dfc57f5b209c298865de2ba16aedbc27b916d618a669ecccdd072733092f9074",
+      "symbols": {
+        "ar_main": 100,
+        "curve_time": 280,
+        "diff_check": 52,
+        "format_release": 298,
+        "load_preset": 162,
+        "reg_group": 0,
+        "rel_main": 84,
+        "release_cc": 400,
+        "shift_alt": 218,
+        "shift_pot": 192,
+        "show_release": 262,
+        "show_release_tick": 244
+      },
+      "code": "1fb584b04f4c432363709ff88431a3704d4b00935fa30193012302934b492246a31cdff82cc1e04704b0bde81f40dff824c16047a25ee35e9a4209d103b444f2b600215a8430205a884203bc18bf531cdff804f101b500f00df8bde80140dff8fcc0604701b500f005f8bde80140dff8f0c0604744f2b602a25a44f24c03e35e9a420dd012f4004f0ad1002b07dd09b202fb01f191fbf3f181f30f0170471146704710b5294c4ff6ff732380dff8b4c0e0472388db0b02d02b4b1b88238010bd40f20264a54202d141f2004503e05c0701d50135adb2dff894f040f20264a54202d141f2004503e05c0701d50135adb2dff87cf0b6f5a05f01d1dff878f040f20353dff874f0b5f5a05f01d1dff86cf040f20353dff868f0f988b1f5a05f08bf41f20040dff85cc06047b4f5a05f04d182b00d460646dff850f040f20363dff84cf00000d8c901208729060872da0120b5e7000831e70008994103088ddc000859440108094e050808da012053020408132c04081d2c0508b32b0508ad1a0508151a05087ded04085be4040811e404084800bf0052656c6561736500"
+    },
+    {
+      "name": "matrix-cc",
+      "region": {
+        "start": "0x0802CA94",
+        "end": "0x0802CC04",
+        "was": "console 'synth' test handler, retired by the 0x080740D4 edit"
+      },
+      "source": "matrix_cc.S",
+      "source_sha256": "1619acf89f964f1b9770ba7a30e867d859e6339c2f0656c6c6dc0ec74b1802ea",
+      "symbols": {
+        "matrix_boot": 0,
+        "matrix_cc_in": 60,
+        "matrix_cc_out": 192,
+        "matrix_ccs": 288,
+        "matrix_local": 232,
+        "matrix_local2": 250,
+        "matrix_send_cc": 212
+      },
+      "code": "70b5dff808c1e04745a4414d0026a35d83b10522b6fbf2f000fb12610a3005eb430282f84c1182f84d0105eb8002d2f8ec2053540136232ee9d170bdc9f30723a9f5206cbcf5e06f0ed244f2810ce045a8f580484fea480808bf4ff000081fb500f003f8bde81f40704710b5294c2079012824d15ffa89f1c9f30723a3f10a02234800eb8300c06a30f81100002818bf01205fea084314bf0123002398420ed0120642ea014141f2f70211435b424ff67f721a4018480123dff860c0e04710bd2d12a3f52061b1f5e06f3cbf80356d10e9b270473f12a5f52061b1f5e06f3cbf80377f10f9b27047db5da4f10a0cbcf1060f98bf7f237f2b70475b5da6f10a0cbcf1060f98bf7f237f2b704711eb000898c80120a4350020a0050020151402080e0f141516191b1e1f0355565750595a00686b6c6d6e6f70717273747576774b4c4d4e00"
+    }
+  ],
+  "hooks": [
+    {
+      "site": "0x0801103C",
+      "kind": "bl",
+      "symbol": "reg_group",
+      "was": "bl 0x0800E730 (constructor, after group 19)"
+    },
+    {
+      "site": "0x08034194",
+      "kind": "b.w",
+      "symbol": "diff_check",
+      "was": "ldrsh r2,[r4,r2]; ldrsh r3,[r4,r3] (Dec/Rel changed?)"
+    },
+    {
+      "site": "0x08034682",
+      "kind": "bl",
+      "symbol": "rel_main",
+      "was": "bl 0x0800DC8C (amp envelope release)"
+    },
+    {
+      "site": "0x080346A2",
+      "kind": "bl",
+      "symbol": "ar_main",
+      "was": "bl 0x08014458 (AR envelope release)"
+    },
+    {
+      "site": "0x08055740",
+      "kind": "bl",
+      "symbol": "load_preset",
+      "was": "bl 0x08054E08 (preset parser)"
+    },
+    {
+      "site": "0x0804038A",
+      "kind": "b.w",
+      "symbol": "shift_pot",
+      "was": "lsls r4,r3,#29; bpl.w (Shift alternate, pot handler)"
+    },
+    {
+      "site": "0x08042D6A",
+      "kind": "b.w",
+      "symbol": "shift_alt",
+      "was": "lsls r4,r3,#29; bpl.w (Shift alternate, encoder handler)"
+    },
+    {
+      "site": "0x08052BAE",
+      "kind": "b.w",
+      "symbol": "show_release_tick",
+      "was": "movw r3,#0x503 (OLED popup switch in the UI tick)"
+    },
+    {
+      "site": "0x08051A10",
+      "kind": "b.w",
+      "symbol": "show_release",
+      "was": "movw r3,#0x503 (OLED popup dispatcher)"
+    },
+    {
+      "site": "0x0804E40C",
+      "kind": "b.w",
+      "symbol": "format_release",
+      "was": "movw r3,#0x603 (value formatter)"
+    },
+    {
+      "site": "0x08043530",
+      "kind": "bl",
+      "symbol": "matrix_boot",
+      "was": "bl 0x0800EB10 (parameter object constructor, its only call)"
+    },
+    {
+      "site": "0x080479D6",
+      "kind": "bl",
+      "symbol": "matrix_cc_in",
+      "was": "ubfx r3,r9,#8,#8 (MIDI in: group of the CC's parameter)"
+    },
+    {
+      "site": "0x08023A02",
+      "kind": "bl",
+      "symbol": "matrix_cc_out",
+      "was": "asrs r5,r5,#8; uxtb r1,r5 (MIDI out: CC value in the parameter-change listener)"
+    },
+    {
+      "site": "0x08026874",
+      "kind": "bl",
+      "symbol": "matrix_send_cc",
+      "was": "asrs r7,r7,#8; uxtb r1,r7 (MIDI out: CC value in the set-and-send function)"
+    },
+    {
+      "site": "0x08023C82",
+      "kind": "bl",
+      "symbol": "matrix_local",
+      "was": "ldrb r3,[r3,r7]; cmp r3,#0x7f (setter: Local Off refuses CC parameters)"
+    },
+    {
+      "site": "0x08024756",
+      "kind": "bl",
+      "symbol": "matrix_local2",
+      "was": "ldrb r3,[r3,r5]; cmp r3,#0x7f (second setter: the same gate)"
+    }
+  ],
+  "edits": [
+    {
+      "site": "0x08034A3C",
+      "kind": "movw",
+      "reg": 1,
+      "value": "0x1400",
+      "was": "movw r1,#0x602 (AR envelope on mode change)"
+    },
+    {
+      "site": "0x08037C1C",
+      "kind": "movw",
+      "reg": 1,
+      "value": "0x1400",
+      "was": "movw r1,#0x602 (AR envelope on voice reset)"
+    },
+    {
+      "site": "0x08074054",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BB61, console 'flag' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x08074034",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BC01, console 'help' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x08073FD4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BC85, console 'gpio' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x0806298C",
+      "kind": "string",
+      "text": "Decay",
+      "length": 8,
+      "was": "\"Dec/Rel\", the screen name of 0x602"
+    },
+    {
+      "site": "0x080740D4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x0804F7E0",
+      "kind": "movw",
+      "reg": 0,
+      "value": "0x1400",
+      "was": "movw r0,#0x605 (envelope popup: slot 4, the filter envelope amount the OLED never reads, becomes Release)"
+    },
+    {
+      "site": "0x08008342",
+      "image": "oled",
+      "kind": "half",
+      "value": "0x9E02",
+      "was": "uxth r1,r1 -> ldr r6,[sp,#8] (curve renderer: r6 = the pushed 4th byte, Release)"
+    },
+    {
+      "site": "0x0800835E",
+      "image": "oled",
+      "kind": "half",
+      "value": "0x08B6",
+      "was": "uxth r1,r1 -> lsrs r6,r6,#2 (r6 = release width, was the decay width)"
+    }
+  ],
+  "options": {
+    "release_cc": {
+      "symbol": "release_cc",
+      "default": 72
+    }
+  },
+  "cc_table": {
+    "symbol": "matrix_ccs",
+    "length": 35
+  }
+}

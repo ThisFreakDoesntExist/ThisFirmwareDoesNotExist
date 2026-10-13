@@ -1,0 +1,19 @@
+{
+  "name": "matrix-cc",
+  "description": "Mod matrix over MIDI CC: all 35 matrix amounts sent and received as CCs, -100..+100% as 0..127 with 64 = 0.",
+  "source": "matrix_cc.S",
+  "region": {"start": "0x0802CA94", "end": "0x0802CC04", "was": "console 'synth' test handler, retired by the 0x080740D4 edit"},
+  "hooks": [
+    {"site": "0x08043530", "kind": "bl", "symbol": "matrix_boot", "was": "bl 0x0800EB10 (parameter object constructor, its only call)"},
+    {"site": "0x080479D6", "kind": "bl", "symbol": "matrix_cc_in", "was": "ubfx r3,r9,#8,#8 (MIDI in: group of the CC's parameter)"},
+    {"site": "0x08023A02", "kind": "bl", "symbol": "matrix_cc_out", "was": "asrs r5,r5,#8; uxtb r1,r5 (MIDI out: CC value in the parameter-change listener)"},
+    {"site": "0x08026874", "kind": "bl", "symbol": "matrix_send_cc", "was": "asrs r7,r7,#8; uxtb r1,r7 (MIDI out: CC value in the set-and-send function)"},
+    {"site": "0x08023C82", "kind": "bl", "symbol": "matrix_local", "was": "ldrb r3,[r3,r7]; cmp r3,#0x7f (setter: Local Off refuses CC parameters)"},
+    {"site": "0x08024756", "kind": "bl", "symbol": "matrix_local2", "was": "ldrb r3,[r3,r5]; cmp r3,#0x7f (second setter: the same gate)"}
+  ],
+  "edits": [
+    {"site": "0x080740D4", "kind": "word", "value": "0x0802B8ED", "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"}
+  ],
+  "options": {},
+  "cc_table": {"symbol": "matrix_ccs", "length": 35}
+}

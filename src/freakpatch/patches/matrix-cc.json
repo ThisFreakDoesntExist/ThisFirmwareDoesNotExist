@@ -1,0 +1,72 @@
+{
+  "name": "matrix-cc",
+  "description": "Mod matrix over MIDI CC: all 35 matrix amounts sent and received as CCs, -100..+100% as 0..127 with 64 = 0.",
+  "source": "matrix_cc.S",
+  "region": {
+    "start": "0x0802CA94",
+    "end": "0x0802CC04",
+    "was": "console 'synth' test handler, retired by the 0x080740D4 edit"
+  },
+  "hooks": [
+    {
+      "site": "0x08043530",
+      "kind": "bl",
+      "symbol": "matrix_boot",
+      "was": "bl 0x0800EB10 (parameter object constructor, its only call)"
+    },
+    {
+      "site": "0x080479D6",
+      "kind": "bl",
+      "symbol": "matrix_cc_in",
+      "was": "ubfx r3,r9,#8,#8 (MIDI in: group of the CC's parameter)"
+    },
+    {
+      "site": "0x08023A02",
+      "kind": "bl",
+      "symbol": "matrix_cc_out",
+      "was": "asrs r5,r5,#8; uxtb r1,r5 (MIDI out: CC value in the parameter-change listener)"
+    },
+    {
+      "site": "0x08026874",
+      "kind": "bl",
+      "symbol": "matrix_send_cc",
+      "was": "asrs r7,r7,#8; uxtb r1,r7 (MIDI out: CC value in the set-and-send function)"
+    },
+    {
+      "site": "0x08023C82",
+      "kind": "bl",
+      "symbol": "matrix_local",
+      "was": "ldrb r3,[r3,r7]; cmp r3,#0x7f (setter: Local Off refuses CC parameters)"
+    },
+    {
+      "site": "0x08024756",
+      "kind": "bl",
+      "symbol": "matrix_local2",
+      "was": "ldrb r3,[r3,r5]; cmp r3,#0x7f (second setter: the same gate)"
+    }
+  ],
+  "edits": [
+    {
+      "site": "0x080740D4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"
+    }
+  ],
+  "options": {},
+  "cc_table": {
+    "symbol": "matrix_ccs",
+    "length": 35
+  },
+  "source_sha256": "1619acf89f964f1b9770ba7a30e867d859e6339c2f0656c6c6dc0ec74b1802ea",
+  "symbols": {
+    "matrix_boot": 0,
+    "matrix_cc_in": 60,
+    "matrix_cc_out": 192,
+    "matrix_ccs": 288,
+    "matrix_local": 232,
+    "matrix_local2": 250,
+    "matrix_send_cc": 212
+  },
+  "code": "70b5dff808c1e04745a4414d0026a35d83b10522b6fbf2f000fb12610a3005eb430282f84c1182f84d0105eb8002d2f8ec2053540136232ee9d170bdc9f30723a9f5206cbcf5e06f0ed244f2810ce045a8f580484fea480808bf4ff000081fb500f003f8bde81f40704710b5294c2079012824d15ffa89f1c9f30723a3f10a02234800eb8300c06a30f81100002818bf01205fea084314bf0123002398420ed0120642ea014141f2f70211435b424ff67f721a4018480123dff860c0e04710bd2d12a3f52061b1f5e06f3cbf80356d10e9b270473f12a5f52061b1f5e06f3cbf80377f10f9b27047db5da4f10a0cbcf1060f98bf7f237f2b70475b5da6f10a0cbcf1060f98bf7f237f2b704711eb000898c80120a4350020a0050020151402080e0f141516191b1e1f0355565750595a00686b6c6d6e6f70717273747576774b4c4d4e00"
+}

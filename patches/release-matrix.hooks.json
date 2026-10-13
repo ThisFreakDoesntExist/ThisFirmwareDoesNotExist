@@ -1,0 +1,13 @@
+{
+  "name": "release-matrix",
+  "description": "Separate Release plus the mod matrix over MIDI CC, in one build; the envelope curve draws Decay and Release as separate segments.",
+  "combine": ["release", "matrix-cc"],
+  "drop_hooks": [
+    {"site": "0x0804F7C8", "was": "bl curve_time: back to stock bl 0x0804ED7C, so the curve's slot 2 is always Decay"}
+  ],
+  "edits": [
+    {"site": "0x0804F7E0", "kind": "movw", "reg": 0, "value": "0x1400", "was": "movw r0,#0x605 (envelope popup: slot 4, the filter envelope amount the OLED never reads, becomes Release)"},
+    {"site": "0x08008342", "image": "oled", "kind": "half", "value": "0x9E02", "was": "uxth r1,r1 -> ldr r6,[sp,#8] (curve renderer: r6 = the pushed 4th byte, Release)"},
+    {"site": "0x0800835E", "image": "oled", "kind": "half", "value": "0x08B6", "was": "uxth r1,r1 -> lsrs r6,r6,#2 (r6 = release width, was the decay width)"}
+  ]
+}

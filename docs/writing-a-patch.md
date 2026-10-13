@@ -40,7 +40,8 @@ A ThisFirmwareDoesNotExist patch is a small piece of Thumb code placed inside th
 
 - **region:** where your code is written. It must be space you've made unreachable (see [free space](free-space-and-dead-code.md#making-space-retiring-console-commands)), and the code must fit.
 - **hooks:** each replaces 4 bytes at `site` with a `bl` or `b.w` to `symbol` in your code. Write down what was there in `was`; it's the first thing a reviewer checks.
-- **edits:** a `movw rN, #value` (4 bytes), a 32-bit `word`, or a NUL-padded `string` of exactly `length` bytes.
+- **edits:** a `movw rN, #value` (4 bytes), a 32-bit `word`, a `half` (one 16-bit Thumb instruction), or a NUL-padded `string` of exactly `length` bytes. An edit with `"image": "oled"` targets the OLED chip's image (payload base `0x08000000`) instead of the main image; that image keeps its length and gets a fresh checksum ([example](release-patch.md#separate-decay-and-release-segments-release-matrix)).
+- **combine:** a spec can instead be built from other patches, each keeping its own region, with `drop_hooks` and `edits` of its own ([combined builds](matrix-cc.md#combined-builds)). That's how features go into one build, since patched files can't be patched again.
 - **options:** a byte in your code the CLI may rewrite (`--release-cc`). Add a CLI flag if you add one.
 - Keys the patcher doesn't use (`was`, `description`) are for people.
 
@@ -51,7 +52,7 @@ A ThisFirmwareDoesNotExist patch is a small piece of Thumb code placed inside th
 1. checks the input's SHA-256 against the official 5.0.0.2084 file (anything else is refused, including patched files, so patches can't be stacked; combine features into one patch instead);
 2. writes your code at the region start, then each hook and edit;
 3. recomputes the image checksum and rebuilds the ZIP;
-4. runs `verify()`: same member list, other images untouched, main image the same length, **no byte changed outside the region, hooks and edits**, and every hook decodes to its symbol.
+4. runs `verify()`: same member list, every image the same length, images the patch doesn't edit untouched, **no byte changed outside the region, hooks and edits**, and every hook decodes to its symbol.
 
 To make a new patch selectable, add its name to `PATCHES` in `src/freakpatch/cli.py`.
 

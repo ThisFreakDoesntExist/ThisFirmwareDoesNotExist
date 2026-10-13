@@ -10,9 +10,11 @@ Read them in this order:
 4. [Writing a patch](writing-a-patch.md): from an idea to a file that's safe to flash.
 5. [Oscillator engines](oscillator-engines.md): how engines are described and dispatched, and how to replace one.
 6. [The Release patch](release-patch.md): a complete worked example with every address justified.
-7. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
-8. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
-9. [Related projects](related-projects.md): other open-source MicroFreak work.
+7. [The mod matrix over MIDI CC](matrix-cc.md): a second patch, and how two patches combine into one build.
+8. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
+9. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
+10. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
+11. [Related projects](related-projects.md): other open-source MicroFreak work.
 
 ## Conventions
 

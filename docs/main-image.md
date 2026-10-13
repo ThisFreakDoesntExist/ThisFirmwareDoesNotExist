@@ -99,6 +99,7 @@ Every synth setting is a parameter in one static object at `0x2001C898`, built a
 - **Flag byte 1:** bit 0 = saved in presets, bit 2 = "Shift selects id + 1", bit 7 = handled as a UI control.
 - **MIDI CCs:** the registrar fills a CC map at `obj+0x14C + cc*2` = (index, group). Stock maps CCs 2, 5, 9, 10, 12, 13, 23, 24, 26, 28, 29, 83, 91, 92, 93, 94, 102, 103, 105 and 106. Incoming CCs go through `FUN_080478A4`; the listener `FUN_080239CC` sends CCs out when a mapped parameter changes. A newly registered parameter with a CC gets both directions for free.
 - **Group 6 (EG2, the amp envelope):** Mode, Attack (CC 105), Dec/Rel (CC 106), Sustain (CC 29), Legato, Amount (CC 26), Snap.
+- **Groups 10–16 (Co1–Co7, the mod matrix):** one group per destination row (Pitch, Wave, Timbre, Cutoff, Assign 1–3). Indices 0–4 are the signed amounts for CyclEnv, Env, LFO, Press and Key/Arp, index 5 the row's `Dest`. None has a CC. Filter Amt is the Env → Cutoff cell: CC 26 also writes `0x0D01` ([details](matrix-cc.md#what-the-matrix-is-in-the-firmware)).
 
 [The Release patch](release-patch.md#parameter-system) lists every function that reads the group count and what each does with an unknown group.
 
@@ -113,12 +114,16 @@ Every synth setting is a parameter in one static object at `0x2001C898`, built a
 - The panel object's vtable at `0x08074C44` holds the button-press (`0x0804347C`), button-release (`0x08043494`), **pot** (`FUN_08040220`, absolute knob positions) and **encoder** (`FUN_08042BC8`, relative moves) handlers. **Both** knob handlers carry their own copy of the Shift rule. Hook both.
 - Shift state is stored at `this+0x28` by `FUN_08043224`.
 
-## Screen
+## Screen and LEDs
+
+The full map, with what each patch changes, is in [The screen and LEDs](screen-and-leds.md).
 
 - Parameter changes reach the screen through a listener (`FUN_0804ED94` → `FUN_080558C0`) that records the last touched parameter id.
 - The UI tick `FUN_08052B84`, called from the main loop, turns that id into a popup. **Its id switch exists twice:** in the dispatcher `FUN_080519EC`, which the tick calls only on its first run, and inlined in the tick itself, which is the copy that runs from then on. Hook the inlined copy (and the dispatcher for completeness).
 - The envelope popup `FUN_0804F7AC` draws the curve from `0x601`, `0x602`, `0x603` and `0x605` and formats the value with `FUN_0804E404(buf, id)`, the generic value formatter.
-- The OLED co-processor draws the curve itself, from a 4-byte message of those four values (`FUN_080557E8` → queue `FUN_08021414`, then command `0x12`).
+- The OLED co-processor draws the curve itself, from a 4-byte message of those four values (`FUN_080557E8` → queue `FUN_08021414`, then command `0x12`). Its renderer is `FUN_080082D4` in the OLED image.
+- An incoming MIDI CC stores its value without telling the screen: the setter notifies only groups with a notify bit, and only group 0 has one. So stock shows no popup for any incoming CC.
+- The mod-matrix LEDs are drawn by the matrix controller `0x200035A4` (tick `0x0803AFB0`), one 6-byte frame per cell through the same queue `FUN_08021414`.
 - Display names are copied from flash strings at boot, so renaming a control is a same-length string edit (the Release patch renames `"Dec/Rel"` to `"Decay"`).
 - The boot screen string `Firmware version\n%d.%d.%d.%d` is at `0x080757AC`.
 
@@ -158,4 +163,4 @@ Good first projects for a contributor:
 3. **Codec part number:** needs board inspection.
 4. **Engine descriptor fields** and the per-engine config value (see [oscillator engines](oscillator-engines.md#open-questions)).
 5. **RAM map:** where each subsystem's buffers sit, to find memory for a delay line or other state.
-6. **The OLED image:** how the envelope curve message is drawn, for a true A-D-S-R curve.
+6. **The OLED image:** everything beyond the envelope renderer, which is mapped ([screen and LEDs](screen-and-leds.md#open-questions)).

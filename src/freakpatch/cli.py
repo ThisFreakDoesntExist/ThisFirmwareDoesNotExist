@@ -6,10 +6,13 @@ import argparse
 import sys
 from pathlib import Path
 
+from freakpatch import __version__
 from freakpatch.patcher import LATEST_VERSION, Patch, PatchError, apply
 
-PATCHES = ("release", "diag-region", "diag-hook")
-"""``release`` is the feature; the ``diag-*`` builds check its placement on hardware first."""
+PATCHES = ("release", "release-matrix", "matrix-cc", "diag-region", "diag-hook")
+"""``release`` is the hardware-tested feature, ``release-matrix`` adds the mod matrix over MIDI CC to it, and
+``matrix-cc`` is that on its own; ``release-matrix`` also patches the OLED chip's image, so the envelope curve
+draws Decay and Release separately. The ``diag-*`` builds check placement on hardware first."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -19,10 +22,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--patch", choices=PATCHES, default="release", help="which build (default: release)")
     parser.add_argument("--release-cc", type=int, default=None, help="MIDI CC for Release (default 72)")
     parser.add_argument("--list", action="store_true", help="describe the available patches and exit")
+    parser.add_argument("--version", action="version", version=f"freakpatch {__version__}")
     args = parser.parse_args(argv)
     if args.list:
         for name in PATCHES:
-            print(f"{name:12s} {Patch.load(name).description}")
+            print(f"{name:15s} {Patch.load(name).description}")
         return 0
     if args.firmware is None:
         parser.error("the official firmware file is required")
