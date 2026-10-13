@@ -24,3 +24,5 @@ build/
 
 # Editor and agent tooling, per developer
 .serena/
+
+.claude/
