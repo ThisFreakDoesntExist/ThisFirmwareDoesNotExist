@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from freakpatch import __version__
 from freakpatch.patcher import LATEST_VERSION, Patch, PatchError, apply
 
 PATCHES = ("release", "release-matrix", "matrix-cc", "diag-region", "diag-hook")
@@ -21,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--patch", choices=PATCHES, default="release", help="which build (default: release)")
     parser.add_argument("--release-cc", type=int, default=None, help="MIDI CC for Release (default 72)")
     parser.add_argument("--list", action="store_true", help="describe the available patches and exit")
+    parser.add_argument("--version", action="version", version=f"freakpatch {__version__}")
     args = parser.parse_args(argv)
     if args.list:
         for name in PATCHES:

@@ -81,6 +81,7 @@ PYTHONPATH=src python3 -m freakpatch path/to/microfreak_Firmware_Update_5.0.0.20
 | `--release-cc N` | MIDI CC for Release instead of 72. Must be 1–119 and not one of the CCs the stock firmware already uses.                                                                                                                                                            |
 | `--patch NAME`   | `release` (default), `release-matrix` (Release plus the mod matrix over MIDI CC), `matrix-cc` (the matrix alone), or one of the hardware diagnostics `diag-region` / `diag-hook` (see [docs/writing-a-patch.md](docs/writing-a-patch.md#test-on-hardware-in-steps)) |
 | `--list`         | describe the available patches                                                                                                                                                                                                                                      |
+| `--version`      | print the freakpatch version                                                                                                                                                                                                                                        |
 
 `freakpatch` is a picky eater. It accepts **only** the official 5.0.0.2084 file (SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`). It refuses anything else, including a file it has already patched: one freaking per file. It also checks its own output: same length as stock, and nothing changed except the bytes the patch declares.
 

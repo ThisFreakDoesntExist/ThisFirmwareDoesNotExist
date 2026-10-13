@@ -1,3 +1,4 @@
+import importlib.metadata
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,13 @@ def test_list_describes_every_patch(capsys: pytest.CaptureFixture[str]) -> None:
     lines = capsys.readouterr().out.splitlines()
     assert [line.split()[0] for line in lines] == list(PATCHES)
     assert all(len(line.split()) > 1 for line in lines)
+
+
+def test_version_matches_the_package(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_:
+        main(["--version"])
+    assert exit_.value.code == 0
+    assert capsys.readouterr().out.strip() == f"freakpatch {importlib.metadata.version('freakpatch')}"
 
 
 def test_missing_firmware_is_a_usage_error(tmp_path: Path) -> None:
