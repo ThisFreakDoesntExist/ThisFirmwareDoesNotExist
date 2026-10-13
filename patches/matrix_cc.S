@@ -8,7 +8,8 @@
 @
 @   matrix_boot      after the parameter object is built, give each cell in
 @                    matrix_ccs its CC in both directions
-@   matrix_cc_in     incoming CC: 0..127 -> -100..+100%, CC 64 = exactly 0
+@   matrix_cc_in     incoming CC: 0..127 -> -100..+100%, CC 64 = exactly 0,
+@                    and the cell's matrix LED when it turns on or off
 @   matrix_cc_out    outgoing CC from the parameter-change listener (panel
 @   matrix_send_cc   edits, preset loads) and from the set-and-send function:
 @                    the inverse, so values round-trip exactly
@@ -37,7 +38,13 @@
         .equ OBJ,            0x2001C898      @ parameter object
         .equ CC_MAP,         0x14C           @ OBJ + CC_MAP + cc*2 = (index, group)
         .equ CC_ARRAYS,      0xEC            @ OBJ + CC_ARRAYS + group*4 = that group's CC bytes
+        .equ VALUES,         0x2C            @ OBJ + VALUES + group*4 = that group's u16 values (getter 0x08023C2C)
         .equ PARAM_INIT,     0x0800EB11      @ parameter object constructor
+        .equ MATRIX_UI,      0x200035A4      @ matrix controller: +4 LED mode, 1 = showing the amounts
+        .equ IO_LINK,        0x200005A0      @ I/O-link sender object
+        .equ IO_SEND,        0x08021415      @ queue a 6-byte frame: (IO_LINK, bytes 0-3, bytes 4-5, 1)
+        .equ LED_HEAD,       0x10F7          @ F7 (all chips, type 7), 10 (LED)
+        .equ LED_ON,         0xFF7F          @ the three 5-bit levels at 31, as the sweep sends a non-zero cell
         .equ FIRST_ROW,      10              @ Co1
         .equ ROWS,           7
         .equ SOURCES,        5
@@ -89,7 +96,12 @@ matrix_boot:
 @ right after the CC map lookup: r9 = parameter id, r8 = the CC value
 @ stretched to 0..0x7FFF. Stock then compares r8 with the current value and
 @ stores it, so a matrix amount is converted to signed here. Returns with
-@ r3 = group, as the displaced instruction left it; clobbers r12.
+@ r3 = group, as the displaced instruction left it; clobbers r12 and the
+@ flags (stock's `cmp r3, #0x1F` comes next).
+@
+@ The MIDI handler runs from the main loop (0x08024F30, via the MIDI parser),
+@ just before the matrix controller's tick (0x08024F42), so matrix_led can use
+@ the controller's own LED sender without racing it.
 
         .global matrix_cc_in
         .thumb_func
@@ -103,7 +115,63 @@ matrix_cc_in:
         lsl     r8, r8, #1
         it      eq
         moveq   r8, #0
+        push    {r0-r4, lr}
+        bl      matrix_led
+        pop     {r0-r4, lr}
 1:      bx      lr
+
+@ Stock lights a matrix LED only from the matrix controller (0x200035A4):
+@ its sweep over all 35 cells and its blinking cursor, both in its tick
+@ 0x0803AFB0. An incoming CC stores the amount and tells nobody, so the LED
+@ stayed as it was until the cursor passed it. The panel path lights it by
+@ broadcasting the change (0x0803AE30), which also opens the "Matrix Amount"
+@ popup, which stock never shows for an incoming CC.
+@
+@ This sends the one frame the sweep (0x0803B00A) sends for that cell,
+@ `F7 10 col row 7F FF` (on) or `.. 00 00` (off), through the same sender, and
+@ nothing else, so the screen doesn't change. Only when the controller shows
+@ the amounts (the sweep sends every LED off otherwise), and only when the
+@ cell turns on or off, so DAW automation doesn't flood the link. The
+@ cursor's cell gets the frame too; its blink redraws it from the stored
+@ value anyway.
+@
+@ r9 = matrix id (row group << 8 | source), r8 = the new amount, not yet
+@ stored. Clobbers r0-r3, r12.
+        .thumb_func
+matrix_led:
+        push    {r4, lr}
+        ldr     r4, =MATRIX_UI
+        ldrb    r0, [r4, #4]
+        cmp     r0, #1                  @ LEDs showing the amounts
+        bne     9f
+        uxtb    r1, r9                  @ LED column = source
+        ubfx    r3, r9, #8, #8          @ group
+        sub     r2, r3, #FIRST_ROW      @ LED row
+        ldr     r0, =OBJ
+        add     r0, r0, r3, lsl #2
+        ldr     r0, [r0, #VALUES]
+        ldrh    r0, [r0, r1, lsl #1]    @ the current amount, as the getter reads it
+        cmp     r0, #0
+        it      ne
+        movne   r0, #1
+        lsls    r3, r8, #16             @ the new amount is -0x8000..0x7FFE: 0 iff its low half is
+        ite     ne
+        movne   r3, #1
+        moveq   r3, #0
+        cmp     r0, r3
+        beq     9f                      @ the LED already shows it
+        lsls    r2, r2, #24
+        orr     r1, r2, r1, lsl #16
+        movw    r2, #LED_HEAD
+        orrs    r1, r2                  @ bytes 0-3: F7 10 col row
+        negs    r3, r3
+        movw    r2, #LED_ON
+        ands    r2, r3                  @ bytes 4-5: the levels, or 0
+        ldr     r0, =IO_LINK
+        movs    r3, #1
+        ldr     r12, =IO_SEND
+        blx     r12
+9:      pop     {r4, pc}
 
 @ ------------------------------------------------------------------ MIDI out
 @ Both stock senders a matrix amount can reach compute the CC value as

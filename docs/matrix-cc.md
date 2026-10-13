@@ -4,7 +4,7 @@
 
 **Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
-Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). That build is emulator-verified only; the hardware results below are for the earlier build.
+Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). That build is emulator-verified only; the hardware results below are for the earlier build. So is the [LED refresh](#the-led-refresh) that came after it.
 
 ## What the matrix is in the firmware
 
@@ -70,14 +70,35 @@ The sound follows anyway because the voices read the stored values themselves (v
 
 **Under emulation** (booted firmware, patched image): after an incoming CC 14 the main CPU sends **0 bytes** to the I/O chips. Broadcasting the same change with `0x0803AE30` sends 176 bytes, all from the UI listener `0x20000A10`; the other five listeners (including MIDI CC out) send nothing. Decoded, they're the screen popup: `CycEnv`, `Pitch`, `100`, `Click to browse`, `Matrix Amount`. That's byte for byte what the matrix screen sends when you edit the cell by hand. The matrix LED chip isn't modelled on that link, so whether those frames also carry the LEDs wasn't visible.
 
-**A fix, not implemented:** after storing a matrix CC, notify only the UI listener `0x20000A10` (never the CC-out listener, so nothing echoes back). That should light the LEDs, but it also pops up "Matrix Amount" on every incoming CC, which stock never does for any parameter and which would flicker constantly under DAW automation. An LED-only refresh needs the LED path reverse-engineered first.
+**Not the fix:** notifying the UI listener `0x20000A10` after storing a matrix CC lights the LEDs, but it also pops up "Matrix Amount" on every incoming CC, which stock never does for any parameter and which would flicker constantly under DAW automation. The patch sends the LED frame alone instead: see [the LED refresh](#the-led-refresh).
+
+### The LED refresh
+
+The matrix LEDs don't go through the UI listener at all. The matrix controller (`0x200035A4`, tick `0x0803AFB0`) owns them and redraws them from the stored amounts: a sweep of all 35 cells (counter `+0x44`, one cell every ~3 ms, started by `0x0803B728` or `0x0803B2D8`) and the blinking cursor cell (`+6`/`+7`). For each cell the sweep (`0x0803B00A`) builds a 6-byte frame with `0x08021AB0` and queues it on the I/O link with `0x08021414(0x200005A0, bytes 0–3, bytes 4–5, 1)`:
+
+| Amount | Frame |
+|---|---|
+| ≠ 0 | `F7 10 col row 7F FF` (all three 5-bit levels at 31) |
+| 0, or LED mode `+4` ≠ 1 | `F7 10 col row 00 00` |
+
+col = source 0–4, row = destination 0–6. The matrix I/O chip turns it into its LED scan buffer.
+
+`matrix_cc_in` now ends by calling `matrix_led`, which sends that one frame for the CC's cell, through the same sender, and nothing else:
+
+- only while the controller shows amounts (`[0x200035A4 + 4] == 1`, as the sweep checks);
+- only when the cell goes between zero and non-zero (old amount read as getter `0x08023C2C` does, before stock stores the new one), so DAW automation sends a frame only when the LED changes, not one per CC;
+- the cursor's cell gets the frame too; the controller's blink redraws it from the stored value anyway.
+
+**Same context as the sweep.** The MIDI handler runs from the main loop: main loop `bl 0x08047C6C` at `0x08024F30` → MIDI parser → `0x080478A4`, right before the main loop's call to the matrix tick at `0x08024F42` (backtrace under emulation). So the patch's send can't interleave with the controller's own sends through `0x08021414`. Stock's MIDI code already calls that sender too (`0x080472AE`, `0x0804756E`).
+
+**Not covered:** Env → Cutoff over CC 26 is written by stock's own special case (`0x08047A00`), not through `matrix_cc_in`, so its LED still waits for the controller, as in stock.
 
 ## The patch
 
 | Hook | Site | Was | Does |
 |---|---|---|---|
 | `matrix_boot` | `0x08043530` | `bl 0x0800EB10`, the constructor's only call (`FUN_0804352C`) | Calls the constructor, then for every cell in `matrix_ccs` writes `OBJ + 0x14C + cc*2 = (index, group)` (in) and the group's CC byte (out) |
-| `matrix_cc_in` | `0x080479D6` | `ubfx r3, r9, #8, #8` | Redoes it; if `r9` is a matrix id, `r8 = (r8 − 0x4000) × 2`, or 0 for CC 64. Stock's `cmp r3, #0x1F` runs next, then compares and stores the converted value |
+| `matrix_cc_in` | `0x080479D6` | `ubfx r3, r9, #8, #8` | Redoes it; if `r9` is a matrix id, `r8 = (r8 − 0x4000) × 2`, or 0 for CC 64, then [refreshes the cell's LED](#the-led-refresh) if it turns on or off. Stock's `cmp r3, #0x1F` runs next, then compares and stores the converted value |
 | `matrix_cc_out` | `0x08023A02` | `asrs r5, r5, #8; uxtb r1, r5` (listener, `r3` = id) | For a matrix id `r5 = ((value >> 8) + 128) >> 1`, which equals `(value + 0x8000) >> 9`; then `r1 = uxtb r5` |
 | `matrix_send_cc` | `0x08026874` | `asrs r7, r7, #8; uxtb r1, r7` (set-and-send, `r5` = id) | The same |
 | `matrix_local` | `0x08023C82` | `ldrb r3, [r3, r7]; cmp r3, #0x7F` (setter, `r4` = group) | A matrix group reads as "no CC" for the Local-Off check |
@@ -91,7 +112,7 @@ The sound follows anyway because the voices read the stored values themselves (v
 
 ### Region
 
-The code (216 bytes) goes over the factory console's `synth` handler, `0x0802CA94–0x0802CC04` (368 bytes), retired by pointing its slot `0x080740D4` at the stock `bx lr` stub `0x0802B8ED`. That region was raw-scan clean and booted on hardware in the `diag-region` and `diag-hook` builds ([free space](free-space-and-dead-code.md#making-space-retiring-console-commands)). `test_region_is_reached_only_through_the_patch` checks that the patched image reaches it only through the six hooks.
+The code (324 bytes) goes over the factory console's `synth` handler, `0x0802CA94–0x0802CC04` (368 bytes), retired by pointing its slot `0x080740D4` at the stock `bx lr` stub `0x0802B8ED`. That region was raw-scan clean and booted on hardware in the `diag-region` and `diag-hook` builds ([free space](free-space-and-dead-code.md#making-space-retiring-console-commands)). `test_region_is_reached_only_through_the_patch` checks that the patched image reaches it only through the six hooks.
 
 ### CCs
 
@@ -134,8 +155,19 @@ The object at `0x2001C7C8` is used from 13 places, among them voice-level DSP (`
 
 ## Verified
 
-- **Unit emulation** (`tests/test_matrix_cc.py`), running the stock functions with the patch in place: every cell's mapping at boot and nothing else changed; incoming CCs through both store paths (Local Control on and off), matching stock's own Filter Amt conversion for all 128 values; outgoing CCs from the listener (queued and immediate) and from set-and-send; Local Off writes; every other parameter unchanged against the hardware-tested Release build.
+- **Unit emulation** (`tests/test_matrix_cc.py`), running the stock functions with the patch in place: every cell's mapping at boot and nothing else changed; incoming CCs through both store paths (Local Control on and off), matching stock's own Filter Amt conversion for all 128 values; outgoing CCs from the listener (queued and immediate) and from set-and-send; Local Off writes; every other parameter unchanged against the hardware-tested Release build; an incoming CC queues exactly the LED frame stock's own builder `0x08021AB0` makes for that cell, once per on/off change, and nothing when the LEDs aren't showing amounts or for any other CC.
 - **Whole firmware** (a local, unpublished emulator of the full booted firmware), a booted synth from a snapshot: a matrix amount set the way the matrix screen sets it goes out on USB as `B0 0E 00/20/40/60/7F` for −100/−50/0/+50/+100%; stock sends nothing. With Local Off it is stored and nothing is sent, as in stock. Set-and-send sends the same values (before the fix it sent `80`, `C0`, `00`, `40`, `7F`). The snapshot was booted on stock firmware, so the probe wrote `matrix_boot`'s table entries itself.
+- **LED refresh, whole firmware** (the same emulator, LEDs modelled from the matrix chip's scan buffer, booted `release-matrix` snapshot, keyboard chip muted), CC 15 = Pitch ← Env, before and after the refresh:
+
+  | Step | Amount | LED, before | LED, after |
+  |---|---|---|---|
+  | CC 127 | 32766 | off | on, 6 ms later |
+  | CC 64 | 0 | off | off, 6 ms later |
+  | CC 127 | 32766 | off | on, 6 ms later |
+  | controller sweep (what scrolling redraws) | 32766 | **on** | on |
+  | CC 64 | 0 | **on (stale)** | off, 4 ms later |
+
+  One LED frame per on/off change, none otherwise. Every step sends 0 display frames and changes 0 OLED pixels in both builds, and display traffic is byte-identical between them; the panel path, for contrast, sends 21 display frames and opens "Matrix Amount".
 
 ## Hardware results
 
@@ -146,7 +178,7 @@ The default `release-matrix` build, flashed on a MicroFreak with 5.0.0.2084, dri
 | Boot, Decay and Shift + Decay (Release) | as with the Release build |
 | CC 14 = 96 into Pitch ← CyclEnv | stored as +51.2% (computed: 51.18%); CC 14 = 32 shows −49.6% (computed: −49.6%) |
 | Sound follows an incoming matrix CC | yes, at once: holding C3, CC 14 = 64 gives a steady 131 Hz, CC 14 = 127 and = 0 give heavy pitch modulation |
-| Matrix screen and LEDs follow an incoming matrix CC | no: they update when the matrix cursor next passes the cell. **Stock does the same** for its own MIDI write to a matrix cell (CC 26 → Env → Cutoff), and shows no popup for any incoming CC (checked with CC 23) |
+| Matrix screen and LEDs follow an incoming matrix CC (before the [LED refresh](#the-led-refresh)) | no: they update when the matrix cursor next passes the cell. **Stock does the same** for its own MIDI write to a matrix cell (CC 26 → Env → Cutoff), and shows no popup for any incoming CC (checked with CC 23) |
 | Turning a matrix amount on the panel | CC 14 goes out 64 → 127 → 0 in single steps, nothing else interleaved |
 | Loading presets | no CCs sent |
 | Local Control off | matrix amounts still change on the panel; no CC is sent (keyboard notes are) |
@@ -158,7 +190,7 @@ A patch spec with `"combine": [...]` is built from other single-region specs: ea
 
 ## Not yet checked
 
-- Redrawing the matrix LEDs after an incoming CC without the screen popup (stock's broadcast `0x0803AE30` to the UI listener `0x20000A10` redraws, but always as the full "Matrix Amount" popup, which stock never shows for incoming CCs).
+- The [LED refresh](#the-led-refresh) on hardware: with the Init patch, CC 15 = 127 then 64 should turn the Pitch ← Env LED on, then off, with no popup.
 - What the 16-slot CC table at `0x2001C7C8 + 0x48` is (CC 75–82, 111–118, 119, 70), and whether losing CC 75–78, 80, 111–119 to the matrix breaks it, for example on the Vocoder ([above](#ccs-stock-already-listens-to)). If it matters, remap those 14.
 - What settings byte `+0x47` is (it gates set-and-send; the surrounding code loops over four tracks, likely the sequencer's modulation lanes).
 - The three `Dest` parameters (index 5) have no CC. Mapping them would let a DAW change where Assign 1–3 point.

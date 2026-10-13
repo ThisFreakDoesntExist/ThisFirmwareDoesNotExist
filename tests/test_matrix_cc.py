@@ -25,6 +25,9 @@ SEND_QUEUE, SEND_DIN, SEND_USB = 0x0803_B7BC, 0x0804_7FC4, 0x0804_7DF8
 MIDI_STATE, SETTINGS = 0x2000_00E4, 0x2000_07A8
 """Settings bytes: +0x3C MIDI input channel, +0x40 send CCs, +0x41 MIDI output, +0x42 Local Control, +0x47 the
 set-and-send function's gate."""
+MATRIX_UI, IO_LINK, IO_SEND, LED_FRAME = 0x2000_35A4, 0x2000_05A0, 0x0802_1414, 0x0802_1AB0
+"""The matrix controller (+4: LED mode, 1 = amounts), the I/O-link sender object, its queue function and stock's LED
+frame builder."""
 PANEL_PARAMS, PANEL_PARAM_COUNT = 0x0807_3788, 24
 """The fixed list of parameters the pot and encoder handlers drive, with their own CC senders."""
 FIRST_ROW, ROWS, SOURCES = 10, 7, 5
@@ -252,6 +255,73 @@ def test_other_ccs_behave_as_before(
         send_cc(after, cc, value, local)
         assert after.param(pid) == before.param(pid)
         assert after.param(ENV_TO_CUTOFF) == before.param(ENV_TO_CUTOFF)
+
+
+# ------------------------------------------------------------------ matrix LEDs
+
+
+def stock_led_frame(e: Emu, col: int, row: int, on: bool) -> tuple[int, int]:
+    """The two words the matrix controller's sweep (0x0803B00A) hands the link sender for one cell: its frame,
+    built by stock's 0x08021AB0 with all three levels 0xFF (amount non-zero) or 0."""
+    level = 0xFF if on else 0
+    sp = e.reg("sp")
+    e.set_regs(sp=sp - 0x20)
+    e.write(sp - 0x20, struct.pack("<4I", row, level, level, level))
+    frame = 0x2001_0100
+    e.call(LED_FRAME, frame, 0xFF, 0, col)
+    e.set_regs(sp=sp)
+    return e.read32(frame), e.read16(frame + 4)
+
+
+def led_sends(e: Emu, mode: int = 1) -> list[tuple[int, int]]:
+    """Set the matrix controller's LED mode and record every frame queued on the I/O link."""
+    e.write(MATRIX_UI + 4, bytes([mode]))
+    sent: list[tuple[int, int]] = []
+
+    def record(emu: Emu) -> None:
+        assert (emu.reg("r0"), emu.reg("r3")) == (IO_LINK, 1)
+        sent.append((emu.reg("r1"), emu.reg("r2") & 0xFFFF))
+
+    e.stub(IO_SEND, record)
+    return sent
+
+
+@pytest.mark.parametrize("local", [1, 0])
+@pytest.mark.parametrize("cc", [14, 22, 80, 90, 119, 78])
+def test_cc_lights_the_led_as_the_sweep_does(combined_payload: bytes, patch: Patch, cc: int, local: int) -> None:
+    e = booted(combined_payload, patch)
+    pid = CELLS[cc]
+    col, row = pid & 0xFF, (pid >> 8) - FIRST_ROW
+    on, off = stock_led_frame(e, col, row, True), stock_led_frame(e, col, row, False)
+    assert on[0] == 0xF7 | 0x10 << 8 | col << 16 | row << 24 and on[1] == 0xFF7F and off[1] == 0
+    e.set_param(pid, 0)
+    sent = led_sends(e)
+    for value, expect in [(127, on), (96, None), (64, off), (64, None), (0, on), (64, off), (65, on), (63, None)]:
+        send_cc(e, cc, value, local)
+        assert sent == ([expect] if expect else []), value
+        assert signed(e.param(pid)) == amount_of(value)
+        sent.clear()
+
+
+@pytest.mark.parametrize("mode", [0, 2])
+def test_no_led_frame_unless_the_matrix_shows_amounts(combined_payload: bytes, patch: Patch, mode: int) -> None:
+    e = booted(combined_payload, patch)
+    e.set_param(CELLS[14], 0)
+    sent = led_sends(e, mode)
+    for value in (127, 64, 0):
+        send_cc(e, 14, value, 1)
+        assert signed(e.param(CELLS[14])) == amount_of(value)
+    assert sent == []
+
+
+@pytest.mark.parametrize("cc", [23, 26, 72])
+def test_other_ccs_send_no_led_frame(combined_payload: bytes, patch: Patch, cc: int) -> None:
+    """Env -> Cutoff through CC 26 included: stock writes it in its own special case, not through the hook."""
+    e = booted(combined_payload, patch)
+    sent = led_sends(e)
+    for value in (0, 127, 64):
+        send_cc(e, cc, value, 1)
+    assert sent == []
 
 
 # ------------------------------------------------------------------ MIDI out
