@@ -21,3 +21,6 @@ build/
 
 # OS
 .DS_Store
+
+# Editor and agent tooling, per developer
+.serena/
