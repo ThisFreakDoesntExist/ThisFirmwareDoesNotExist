@@ -119,15 +119,13 @@ The code (324 bytes) goes over the factory console's `synth` handler, `0x0802CA9
 
 ### CCs
 
-| Row | CyclEnv | Env | LFO | Press | Key/Arp |
-|---|---|---|---|---|---|
-| Pitch | 14 | 15 | 20 | 21 | 22 |
-| Wave | 25 | 27 | 30 | 31 | 3 |
-| Timbre | 85 | 86 | 87 | 80 | 89 |
-| Cutoff | 90 | *26 (stock, Filter Amt)* | 104 | 107 | 108 |
-| Assign 1 | 109 | 110 | 111 | 112 | 113 |
-| Assign 2 | 114 | 115 | 116 | 117 | 118 |
-| Assign 3 | 119 | 75 | 76 | 77 | 78 |
+| Source | Pitch | Wave | Timbre | Cutoff | Assign 1 | Assign 2 | Assign 3 |
+|---|---|---|---|---|---|---|---|
+| CyclEnv | 14 | 25 | 85 | 90 | 109 | 114 | 119 |
+| Env | 15 | 27 | 86 | *26 (stock, Filter Amt)* | 110 | 115 | 75 |
+| LFO | 20 | 30 | 87 | 104 | 111 | 116 | 76 |
+| Press | 21 | 31 | 80 | 107 | 112 | 117 | 77 |
+| Key/Arp | 22 | 3 | 89 | 108 | 113 | 118 | 78 |
 
 None is mapped to a stock parameter or is the Release CC, and none is one MIDI gives a fixed meaning (`RESERVED_CCS` in `patcher.py`: bank select, mod wheel, data entry, volume, pan, expression, the 14-bit LSBs, pedals, portamento control, high-resolution velocity (88), effect depths, RPN/NRPN, channel mode). The patcher checks the table on every build, and refuses a `--release-cc` that's in it. **But 14 of them are read by an unmapped-CC handler in stock**: see below.
 

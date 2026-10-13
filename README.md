@@ -34,17 +34,15 @@ Tested on hardware with 5.0.0.2084 ([results](docs/matrix-cc.md#hardware-results
 
 ### Matrix CC map
 
-Rows are destinations, columns are sources. Stock doesn't map any of these to a parameter, none clash with Release on 72, and none are CCs MIDI already reserves for something (mod wheel, sustain, bank select, that kind of thing). If one clashes with your setup, open an issue. `--release-cc` won't let you pick one of these.
+Rows are sources, columns are destinations, same as the panel. Stock doesn't map any of these to a parameter, none clash with Release on 72, and none are CCs MIDI already reserves for something (mod wheel, sustain, bank select, that kind of thing). If one clashes with your setup, open an issue. `--release-cc` won't let you pick one of these.
 
-| Destination / Source | CyclEnv |             Env | LFO | Press | Key/Arp |
-| -------------------- | ------: | --------------: | --: | ----: | ------: |
-| Pitch                |      14 |              15 |  20 |    21 |      22 |
-| Wave                 |      25 |              27 |  30 |    31 |       3 |
-| Timbre               |      85 |              86 |  87 |    80 |      89 |
-| Cutoff               |      90 | 26 (Filter Amt) | 104 |   107 |     108 |
-| Assign 1             |     109 |             110 | 111 |   112 |     113 |
-| Assign 2             |     114 |             115 | 116 |   117 |     118 |
-| Assign 3             |     119 |              75 |  76 |    77 |      78 |
+| Source / Destination | Pitch | Wave | Timbre |          Cutoff | Assign 1 | Assign 2 | Assign 3 |
+| -------------------- | ----: | ---: | -----: | --------------: | -------: | -------: | -------: |
+| CyclEnv              |    14 |   25 |     85 |              90 |      109 |      114 |      119 |
+| Env                  |    15 |   27 |     86 | 26 (Filter Amt) |      110 |      115 |       75 |
+| LFO                  |    20 |   30 |     87 |             104 |      111 |      116 |       76 |
+| Press                |    21 |   31 |     80 |             107 |      112 |      117 |       77 |
+| Key/Arp              |    22 |    3 |     89 |             108 |      113 |      118 |       78 |
 
 **Heads up, this might break the Vocoder.** 14 of these CCs (75–78, 80, 111–119) aren't totally free. Stock firmware quietly listens to CC 75–82 and 111–118 for something with 16 slots, and CC 119 sets all 16 at once. My best guess is the Vocoder's 16 bands, but that's a guess. With this patch those CCs go to the matrix instead, so whatever stock used them for won't get them anymore. Untested. Details in [docs/matrix-cc.md](docs/matrix-cc.md#ccs-stock-already-listens-to).
 
