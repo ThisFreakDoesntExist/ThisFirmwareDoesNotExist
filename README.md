@@ -113,7 +113,9 @@ No surprises in the output either: it's deterministic. The default Release build
 | [Writing a patch](docs/writing-a-patch.md)                     | The patch format, hooks and edits, building, testing under emulation, flashing safely                          |
 | [Oscillator engines](docs/oscillator-engines.md)               | Engine IDs, the descriptor table, engine classes, and how to replace an engine                                 |
 | [The Release patch](docs/release-patch.md)                     | Every address the Release patch uses and how it was derived and checked: a worked example                      |
-| [The mod matrix over MIDI CC](docs/matrix-cc.md)               | The matrix as stock stores it, the three hooks, the CC table, and how two patches combine into one build       |
+| [The mod matrix over MIDI CC](docs/matrix-cc.md)               | The matrix as stock stores it, the six hooks, the CC table, the LED refresh, combined builds                   |
+| [The screen and LEDs](docs/screen-and-leds.md)                 | How the OLED and matrix LEDs are fed, the envelope curve on the OLED chip, and what the patches change there   |
+| [Spice and Dice](docs/spice-and-dice.md)                       | How the arp and sequencer randomisers work, and where to dig further                                           |
 | [Reverse-engineering setup](docs/reverse-engineering-setup.md) | Headless Ghidra scripts and the raw-byte reference scanner                                                     |
 | [Related projects](docs/related-projects.md)                   | Other open-source MicroFreak tools and where they fit                                                          |
 

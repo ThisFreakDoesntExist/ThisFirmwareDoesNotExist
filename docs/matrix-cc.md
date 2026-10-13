@@ -4,7 +4,11 @@
 
 **Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
-Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). The curve change is emulator-verified only. The [LED refresh](#the-led-refresh) that came after it is tested on hardware (build SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`, which includes the curve change), see [LED refresh on hardware](#led-refresh-on-hardware).
+Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). The curve change is emulator-verified only. The [LED refresh](#the-led-refresh) that came after it is tested on hardware (build SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`, which includes the curve change, though the curve itself wasn't checked on that flash), see [LED refresh on hardware](#led-refresh-on-hardware). How the screen and LEDs are fed in general is mapped in [The screen and LEDs](screen-and-leds.md).
+
+## Provenance
+
+Everything in this file was derived from Arturia's stock MicroFreak firmware 5.0.0.2084 only (SHA-256 of the `.mff`: `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`), with the tools in [Reverse-engineering setup](reverse-engineering-setup.md), Unicorn runs of stock functions, a whole-firmware emulator (local, not published) and raw-byte scans. No third-party firmware mod was opened, diffed or used. Stock code is described, not reproduced: this page gives addresses, layouts and behaviour, and the patch is our own code ([`patches/matrix_cc.S`](../patches/matrix_cc.S)).
 
 ## What the matrix is in the firmware
 
@@ -25,15 +29,14 @@ The matrix is seven ordinary parameter groups, one per destination row, read fro
 
 ## MIDI in, stock
 
-`FUN_080478A4` handles a Control Change at `0x080479AE`:
+`FUN_080478A4` handles a Control Change at `0x080479AE`, in these steps:
 
-```c
-cc = data1 & 0x7F;  v = data2 & 0x7F;
-v15 = (v << 8) | (v << 1) | (v >> 6);            // 0..127 -> 0..0x7FFF
-id  = *(u16 *)(OBJ + 0x14C + cc * 2);            // (index, group); group 0x1F = unmapped
-if (group(id) == 0x1F) -> other listeners (0x08047AC8)
-if ((s16)get(id) != v15) { convert(id, &v15); store(id, v15); }   // 0x0804762C, then 0x0803F2C4 (Local on) or 0x08023C9C
-```
+| Step | What happens |
+|---|---|
+| Value | the 7-bit value `v` is widened to 15 bits, `v15 = v·0x102 + v/64` (0…127 → 0…`0x7FFF`) |
+| Lookup | the CC map entry `OBJ + 0x14C + cc*2` gives (index, group); group `0x1F` means unmapped |
+| Unmapped | passed to two other handler objects (`0x08047AC8`), see [below](#ccs-stock-already-listens-to) |
+| Mapped | if the stored value differs: convert by meta byte (`0x0804762C`), then store through `0x0803F2C4` (Local Control on) or `0x08023C9C` (off) |
 
 `0x0804762C` converts the value by the parameter's meta byte only when flag bit `0x20` is set. No stock parameter sets it and the matrix amounts don't, so unsigned `v15` would be stored: CC 0 = 0%, CC 64 = +50%, no negative amounts.
 
@@ -59,7 +62,7 @@ The alternative, matching how the panel knobs behave under Local Off (send the C
 
 **Observed on hardware:** a matrix CC changes the sound at once, but the matrix LED and screen stay as they were until the matrix cursor passes that cell. **Stock does the same.** CC 26 changes Filter Amt and, through it, Env → Cutoff (`0x0D01`), but the Cutoff / Env LED doesn't change; scrolling over the cell lights it. Turning the physical Filter Amt knob lights it at once. Stock also shows no popup for any incoming CC (checked with CC 23, Cutoff).
 
-**Why:** the panel and MIDI reach a parameter by different paths, and only the panel path tells the display.
+**Why:** the panel and MIDI reach a parameter by different paths, and only the panel path tells the display. ([The screen and LEDs](screen-and-leds.md#how-a-change-reaches-the-display) has the general picture.)
 
 | Path | What runs | Display |
 |---|---|---|
@@ -156,8 +159,8 @@ The object at `0x2001C7C8` is used from 13 places, among them voice-level DSP (`
 ## Verified
 
 - **Unit emulation** (`tests/test_matrix_cc.py`), running the stock functions with the patch in place: every cell's mapping at boot and nothing else changed; incoming CCs through both store paths (Local Control on and off), matching stock's own Filter Amt conversion for all 128 values; outgoing CCs from the listener (queued and immediate) and from set-and-send; Local Off writes; every other parameter unchanged against the hardware-tested Release build; an incoming CC queues exactly the LED frame stock's own builder `0x08021AB0` makes for that cell, once per on/off change, and nothing when the LEDs aren't showing amounts or for any other CC.
-- **Whole firmware** (a local, unpublished emulator of the full booted firmware), a booted synth from a snapshot: a matrix amount set the way the matrix screen sets it goes out on USB as `B0 0E 00/20/40/60/7F` for −100/−50/0/+50/+100%; stock sends nothing. With Local Off it is stored and nothing is sent, as in stock. Set-and-send sends the same values (before the fix it sent `80`, `C0`, `00`, `40`, `7F`). The snapshot was booted on stock firmware, so the probe wrote `matrix_boot`'s table entries itself.
-- **LED refresh, whole firmware** (the same emulator, LEDs modelled from the matrix chip's scan buffer, booted `release-matrix` snapshot, keyboard chip muted), CC 15 = Pitch ← Env, before and after the refresh:
+- **Whole firmware** (the whole-firmware emulator, a booted synth from a snapshot): a matrix amount set the way the matrix screen sets it goes out on USB as `B0 0E 00/20/40/60/7F` for −100/−50/0/+50/+100%; stock sends nothing. With Local Off it is stored and nothing is sent, as in stock. Set-and-send sends the same values (before the fix it sent `80`, `C0`, `00`, `40`, `7F`). The snapshot was booted on stock firmware, so the probe wrote `matrix_boot`'s table entries itself.
+- **LED refresh, whole firmware** (the whole-firmware emulator, LEDs modelled from the matrix chip's scan buffer, booted `release-matrix` snapshot, keyboard chip muted), CC 15 = Pitch ← Env, before and after the refresh:
 
   | Step | Amount | LED, before | LED, after |
   |---|---|---|---|

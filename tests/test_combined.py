@@ -10,7 +10,7 @@ from freakpatch.patcher import OLED_BASE, RESERVED_CCS, STOCK_CCS, Edit, Part, P
 MATRIX_REGION = (0x0802_CA94, 0x0802_CC04)
 RELEASE_DEFAULT_CC = 72
 CURVE_SITE = 0x0804_F7C8
-"""Envelope popup: fp7's curve_time hook, which release-matrix leaves stock (slot 2 = Decay)."""
+"""Envelope popup: the release build's curve_time hook, which release-matrix leaves stock (slot 2 = Decay)."""
 GRAPH_EDITS = (
     Edit(0x0804_F7E0, "movw", 0x1400, 0),  # slot 4: Release instead of 0x605
     Edit(0x0800_8342, "half", 0x9E02, image="oled"),  # ldr r6, [sp, #8]
