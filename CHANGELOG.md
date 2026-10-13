@@ -2,7 +2,7 @@
 
 Versions follow [semantic versioning](https://semver.org/). Every build takes the official 5.0.0.2084 file (SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`) and is deterministic, so each patch's output hash with default options is listed: if yours matches, it's the same file.
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-13)
 
 ### Added
 
