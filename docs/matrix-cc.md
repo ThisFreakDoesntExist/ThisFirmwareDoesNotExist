@@ -103,7 +103,32 @@ The code (216 bytes) goes over the factory console's `synth` handler, `0x0802CA9
 | Assign 2 | 114 | 115 | 116 | 117 | 118 |
 | Assign 3 | 119 | 75 | 76 | 77 | 78 |
 
-None is a stock CC or the Release CC, and none is one MIDI gives a fixed meaning (`RESERVED_CCS` in `patcher.py`: bank select, mod wheel, data entry, volume, pan, expression, the 14-bit LSBs, pedals, portamento control, high-resolution velocity (88), effect depths, RPN/NRPN, channel mode). The patcher checks the table on every build, and refuses a `--release-cc` that's in it.
+None is mapped to a stock parameter or is the Release CC, and none is one MIDI gives a fixed meaning (`RESERVED_CCS` in `patcher.py`: bank select, mod wheel, data entry, volume, pan, expression, the 14-bit LSBs, pedals, portamento control, high-resolution velocity (88), effect depths, RPN/NRPN, channel mode). The patcher checks the table on every build, and refuses a `--release-cc` that's in it. **But 14 of them are read by an unmapped-CC handler in stock**: see below.
+
+### CCs stock already listens to
+
+A CC with no parameter isn't necessarily ignored. The MIDI handler passes it to two handler objects (`0x08047AC8`), and one of them acts on some CCs. Mapping a CC to the matrix takes it away from that handler.
+
+**Method.** On the booted firmware (stock image, emulated), each CC was sent once with value 0 and once with 127 from the same snapshot, and all of SRAM was compared between the two runs. The emulator is deterministic, so a CC that's ignored changes only the stack and two MIDI-parser bytes (`0x2001DD17`, `0x2001E0A6`). Controls: mod wheel (1), volume (7) and expression (11) come out ignored; sustain (64) also changes `0x20003937`; the mapped CCs 9 and 23 change hundreds of bytes.
+
+| CCs | Stock, unmapped |
+|---|---|
+| 3, 14, 15, 20, 21, 22, 25, 27, 30, 31, 85, 86, 87, 89, 90, 104, 107, 108, 109, 110 (matrix) | ignored |
+| 16, 17, 18, 19, 71, 73, 74, 33–63 (not used by the patch) | ignored |
+| **75–82, 111–118** (matrix uses 75–78, 80, 111–118) | **stored**: one float per CC in a 16-slot table |
+| **119** (matrix: Assign 3 ← CyclEnv) | **stored**: sets all 16 slots |
+| 70 (not used) | stored: an on/off byte |
+
+**The handler**, `0x0803056C…0x0803065A`, reached from `0x08047AC8` (a memory-write watch caught it writing):
+
+- CC 75–82 → slot 0–7, CC 111–118 → slot 8–15 (CC 83–110 skip it): the value, scaled, goes as a float to `0x2001C7C8 + 0x48 + slot × 8`. For example, CC 75 = 100 writes `0x3EA00140`. The other word of a slot holds a coefficient (0.05 seen), probably smoothing.
+- CC 119 writes the same float to all 16 slots.
+- CC 70 sets byte `+0x39` of the object: 1 for value 64, 2 for 127, else 0.
+- If byte `+0x3A` is set, it also marks the object changed (`+0xC8`, `+0x40`, `+0x3C`).
+
+The object at `0x2001C7C8` is used from 13 places, among them voice-level DSP (`0x08031618`). **What it is wasn't identified.** Sixteen per-CC levels with an "all" CC and a switch suggests the Vocoder's 16 bands, but that's a guess, and it wasn't tested on hardware or in audio. With the patch, CCs 75–78, 80, 111–119 no longer reach it.
+
+**Replacing the 14** with CCs stock ignores is possible: 16, 17, 18, 19, 71, 73 (74 is MPE's per-note timbre CC, best avoided), plus eight from 33–63. Those are MIDI's 14-bit LSB slots, which `RESERVED_CCS` currently excludes and which a controller sends only when set up for 14-bit control.
 
 ## Verified
 
@@ -132,7 +157,7 @@ A patch spec with `"combine": [...]` is built from other single-region specs: ea
 ## Not yet checked
 
 - Redrawing the matrix LEDs after an incoming CC without the screen popup (stock's broadcast `0x0803AE30` to the UI listener `0x20000A10` redraws, but always as the full "Matrix Amount" popup, which stock never shows for incoming CCs).
-- Whether stock's unmapped-CC listeners (`0x08047AC8`, objects at `0x20000C10`/`0x20000C14`) act on any of the chosen CCs. A mapped CC no longer reaches them.
+- What the 16-slot CC table at `0x2001C7C8 + 0x48` is (CC 75–82, 111–118, 119, 70), and whether losing CC 75–78, 80, 111–119 to the matrix breaks it, for example on the Vocoder ([above](#ccs-stock-already-listens-to)). If it matters, remap those 14.
 - What settings byte `+0x47` is (it gates set-and-send; the surrounding code loops over four tracks, likely the sequencer's modulation lanes).
 - The three `Dest` parameters (index 5) have no CC. Mapping them would let a DAW change where Assign 1–3 point.
 - CC resolution is 7 bits (128 steps, about 1.6% each).
