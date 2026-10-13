@@ -50,7 +50,7 @@ So an incoming CC changes the sound (the voices read stored values directly) but
   | 4 | Filter Amt `0x605`, ignored by the OLED chip | same | Release `0x1400` |
 
 - **The OLED chip draws the curve** in `FUN_080082D4(a, d, s, f)`: widths `a/4`, then `d/4` for both the decay and the release segment, height from `s`. Stock never reads `f` (verified under emulation).
-- `release-matrix` patches two halfwords in that function so the release segment uses `f/4`: see [Separate decay and release segments](release-patch.md#separate-decay-and-release-segments-release-matrix). The main-image and OLED edits must ship together: with only the main edit, the stock OLED ignores slot 4 and the Release popup stops redrawing the curve.
+- `release-matrix` patches two halfwords in that function so the release segment uses `f/4` (tested on hardware, in the same build as the [LED refresh](matrix-cc.md#led-refresh-on-hardware)): see [Separate decay and release segments](release-patch.md#separate-decay-and-release-segments-release-matrix). The main-image and OLED edits must ship together: with only the main edit, the stock OLED ignores slot 4 and the Release popup stops redrawing the curve.
 
 ## The matrix LEDs
 
@@ -79,4 +79,3 @@ So an incoming CC changes the sound (the voices read stored values directly) but
 - What the rest of the OLED image does: only the envelope renderer `FUN_080082D4` has been mapped.
 - The command set of the display link beyond popups and command `0x12`.
 - Whether frames to the matrix chip can drive LED levels other than 0 and 31 (the frame carries three 5-bit levels).
-- **Hardware:** the `release-matrix` curve edits have run only under emulation. A build that includes them (SHA-256 `303bed10…`) was flashed for the [LED test](matrix-cc.md#led-refresh-on-hardware), but what its envelope curve showed wasn't recorded, nor whether the update re-flashed the OLED chip.

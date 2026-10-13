@@ -4,7 +4,7 @@
 
 **Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
-Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). The curve change is emulator-verified only. The [LED refresh](#the-led-refresh) that came after it is tested on hardware (build SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`, which includes the curve change, though the curve itself wasn't checked on that flash), see [LED refresh on hardware](#led-refresh-on-hardware). How the screen and LEDs are fed in general is mapped in [The screen and LEDs](screen-and-leds.md).
+Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). The [LED refresh](#the-led-refresh) that came after it and the curve change are both tested on hardware, in build SHA-256 `303bed10214f5b704b6d7bed4ed52af1f4e948967abcb838f2916cbbee05444a`: see [LED refresh on hardware](#led-refresh-on-hardware). How the screen and LEDs are fed in general is mapped in [The screen and LEDs](screen-and-leds.md).
 
 ## Provenance
 
@@ -194,6 +194,7 @@ The `release-matrix` build with the [LED refresh](#the-led-refresh) (SHA-256 `30
 | Check | Result |
 |---|---|
 | Every matrix CC, one at a time: all 34 reset to 64, then each cell 127, 1 s, 64, 1 s, in matrix order | every cell's LED lit on 127 and went dark on 64, the right cell each time, no popup |
+| Envelope popup ([separate decay and release segments](release-patch.md#separate-decay-and-release-segments-release-matrix)) | works: the curve draws Decay and Release as separate segments |
 
 ## Combined builds
 
