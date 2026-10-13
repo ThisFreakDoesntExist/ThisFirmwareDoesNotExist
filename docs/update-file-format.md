@@ -98,4 +98,4 @@ Older 3.x firmware used a different wavetable image (no metadata pages, a differ
 
 ## The I/O chip images
 
-The OLED, matrix and keyboard images are code for separate Cortex-M0 microcontrollers that talk to the main CPU over serial links (inferred from the main CPU's USART handlers). They use the same header and checksum rule as the main image. They haven't been mapped here. The one place this matters so far: the envelope curve on the screen is drawn by the OLED chip from a single decay/release time, so a curve with separate decay and release segments would need that image patched too.
+The OLED, matrix and keyboard images are code for separate Cortex-M0 microcontrollers that talk to the main CPU over serial links (inferred from the main CPU's USART handlers). They use the same header and checksum rule as the main image. They haven't been mapped here, apart from the OLED chip's envelope curve renderer, which the `release-matrix` build patches (payload base `0x08000000`, see [release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)).

@@ -4,6 +4,8 @@
 
 **Status: tested on hardware** (build SHA-256 `e7d1f7e8806ecbf30a451dea3de489da432f9616269a4c5077742d53640cf30a`), see [hardware results](#hardware-results). The default `release` build stays the Release patch alone.
 
+Since then `release-matrix` also draws the envelope curve with separate decay and release segments, which patches the OLED chip's image too ([release-patch.md](release-patch.md#separate-decay-and-release-segments-release-matrix)). That build is emulator-verified only; the hardware results below are for the earlier build.
+
 ## What the matrix is in the firmware
 
 The matrix is seven ordinary parameter groups, one per destination row, read from the stock constructor under Unicorn:
@@ -152,7 +154,7 @@ The default `release-matrix` build, flashed on a MicroFreak with 5.0.0.2084, dri
 
 ## Combined builds
 
-A patch spec with `"combine": [...]` is built from other single-region specs: each part keeps its own region, code and symbols. `build_patch.py` refuses overlapping regions, two parts patching overlapping bytes, a part patching inside another part's code region, a symbol or option declared twice, and more than one CC table. The shipped JSON lists the parts under `"parts"`. Single-region patches are unchanged, so `release.json` and the hardware-tested Release file are byte for byte as before. `test_build.py` checks every shipped JSON, combined ones included, against a fresh build of its specs.
+A patch spec with `"combine": [...]` is built from other single-region specs: each part keeps its own region, code and symbols. The combined spec can also list `drop_hooks` (a part's hook sites left stock) and `edits` of its own; an edit with `"image": "oled"` targets the OLED chip's image. `build_patch.py` refuses overlapping regions, two parts patching overlapping bytes, a part patching inside another part's code region, a symbol or option declared twice, and more than one CC table. The shipped JSON lists the parts under `"parts"`. Single-region patches are unchanged, so `release.json` and the hardware-tested Release file are byte for byte as before. `test_build.py` checks every shipped JSON, combined ones included, against a fresh build of its specs.
 
 ## Not yet checked
 

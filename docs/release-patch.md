@@ -22,7 +22,7 @@ Modulation applied to Dec/Rel scales Release in the same proportion (`R' = R · 
 
 The code is 412 bytes, placed over the factory console's `flag`, `help` and `gpio` handlers (432 bytes), which the patch retires.
 
-**Limit:** the envelope curve on the screen is drawn by the OLED co-processor from a single decay/release time. While the Release popup is open the patch sends Release's time, so the whole curve follows Release. A curve with separate decay and release segments would need the OLED chip's firmware (image 1) patched as well.
+**Limit:** the envelope curve on the screen is drawn by the OLED co-processor from a single decay/release time. While the Release popup is open the patch sends Release's time, so the whole curve follows Release. The `release-matrix` build draws separate decay and release segments instead, by also patching the OLED chip's firmware (image 1): see [Separate decay and release segments](#separate-decay-and-release-segments-release-matrix).
 
 ## Provenance
 
@@ -173,6 +173,28 @@ The Dec/Rel case runs only when `cur_D != prev_D` (`0x0803418C–0x0803419A`) or
 - **Drawing the curve.** `FUN_0804F7AC` sends the top bytes of `0x601`, `0x602`, `0x603` and `0x605` (via `FUN_0804ED7C`, a raw value read) as one 4-byte message (`FUN_080557E8` → `FUN_08021414` queue), then command `0x12`/`0x2000`. The envelope curve is drawn by the OLED co-processor (its own firmware, image 1), from a single decay/release time. A separate release segment would need a change on that chip.
 - The popup reads the curve's decay/release time with `bl 0x0804ED7C` at `0x0804F7C8` (`r0 = 0x602`, popup object in `r7` since `0x0804F7B0`, its id at `[r7,#6]`). `FUN_0804ED7C` reads the same parameter object (`0x2001C898`, literal `0x0804ED90`), so id `0x1400` returns Release. The patch's `curve_time` replaces that call and asks for `0x1400` while the popup shows Release.
 - Under emulation the stock formatter prints Release exactly as it prints Dec/Rel at the same value: 0 ms, 504 ms, 1.7 s, 6.0 s, 25.0 s for `0`, `0x800`, `0x2345`, `0x5000` and `0x7FFF`.
+
+#### Separate decay and release segments (`release-matrix`)
+
+The `release` build keeps `curve_time` above. `release-matrix` replaces it with four same-length edits and no new code, two in each image ([`patches/release-matrix.hooks.json`](../patches/release-matrix.hooks.json): `drop_hooks` and `edits`). Found and verified in the MicroFreak emulator. **Not yet run on hardware.**
+
+The OLED chip draws the curve in `FUN_080082D4(a, d, s, f)` (OLED image addresses, payload base `0x08000000`): attack width `a/4`, then `r6 = d/4` (`0x080082E8`) is used for both the decay width (`0x08008334`, `adds r4, r4, r6`) and the release width (`0x0800836E`, `adds r1, r4, r6`). Sustain height comes from `s`. `f`, the 4th byte (`0x605`, Filter Amt), is never read: it only lands on the stack through the function's `push {r1, r2, r3, ...}`, at `[sp, #8]`.
+
+| Image | Address | Stock | Patched | Effect |
+|---|---|---|---|---|
+| main | `0x0804F7C8` | `bl 0x0804ED7C` | unchanged (no `curve_time` hook) | slot 2 is always Decay |
+| main | `0x0804F7E0` | `movw r0, #0x605` | `movw r0, #0x1400` | slot 4 is always Release, in the same scale as Decay |
+| OLED | `0x08008342` | `uxth r1, r1` (`89 b2`) | `ldr r6, [sp, #8]` (`02 9e`) | `r6` = the pushed 4th byte |
+| OLED | `0x0800835E` | `uxth r1, r1` (`89 b2`) | `lsrs r6, r6, #2` (`b6 08`) | `r6` = release width `f/4` |
+
+- Both `uxth r1, r1` are redundant: `r1` holds a small positive coordinate and the next instruction is a `strh r1, [r0, #4]`, which truncates anyway.
+- By `0x08008342` the decay is drawn (`r4` holds `a/4 + d/4`) and `r6` has no use left except the release width at `0x0800836E`.
+- `[sp, #8]` is safe: the function writes only `[sp, #0..7]` as scratch and never moves `sp`.
+- The release end is `x = a/4 + d/4 + f/4 + 0x21`, the same range as stock (where `d/4` is added twice).
+- The patched OLED image keeps its length (81,712 bytes) and gets a fresh checksum in header byte 1 and its last byte, as the main image does. `info.json` and the other images are unchanged.
+- Emulator: as Release turns, the popup packets go `00 2e 12 0b` → `00 2e 12 61` with Decay held in slot 2. A Decay-0 popup keeps a 25 s release tail; a Release-0 popup keeps the 25 s decay curve. The built file's popups are pixel-identical to the emulator's in-memory patch of fp7.
+- Ship both halves or neither. With the main edits alone, the stock OLED ignores slot 4, so the Release popup no longer redraws the curve at all.
+- **Hardware unknowns:** whether an update flashes the OLED chip when its image keeps the stock file name, and whether the chip accepts the changed image. The 4.0.1 → 5.0.0 update did change the OLED image (name and checksum both). Re-flashing the official 5.0.0 `.mff` restores the stock OLED image.
 
 ### MIDI CC
 

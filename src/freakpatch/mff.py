@@ -14,6 +14,7 @@ from functools import reduce
 
 HEADER_LEN = 0x40
 MAIN_IMAGE_PREFIX = "nanowave_main"
+OLED_IMAGE_PREFIX = "nanowave_iochip_oled"
 
 
 def xor8(data: bytes) -> int:
@@ -47,9 +48,12 @@ class Update:
 
     @property
     def main_name(self) -> str:
-        names = [m.info.filename for m in self.members if m.info.filename.startswith(MAIN_IMAGE_PREFIX)]
+        return self.image_name(MAIN_IMAGE_PREFIX)
+
+    def image_name(self, prefix: str) -> str:
+        names = [m.info.filename for m in self.members if m.info.filename.startswith(prefix)]
         if len(names) != 1:
-            raise ValueError(f"expected one {MAIN_IMAGE_PREFIX}* image, found {len(names)}")
+            raise ValueError(f"expected one {prefix}* image, found {len(names)}")
         return names[0]
 
     def read(self, name: str) -> bytes:
@@ -60,9 +64,9 @@ class Update:
 
 
 def main_payload(image: bytes) -> bytes:
-    """The code image's payload: header and trailing checksum byte removed."""
+    """A code image's payload (main or I/O chip): header and trailing checksum byte removed."""
     if len(image) < HEADER_LEN + 1 or image[1] != image[-1] or xor8(image[HEADER_LEN:]) != 0:
-        raise ValueError("main image checksum is invalid")
+        raise ValueError("image checksum is invalid")
     return image[HEADER_LEN:-1]
 
 

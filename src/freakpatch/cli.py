@@ -10,7 +10,8 @@ from freakpatch.patcher import LATEST_VERSION, Patch, PatchError, apply
 
 PATCHES = ("release", "release-matrix", "matrix-cc", "diag-region", "diag-hook")
 """``release`` is the hardware-tested feature, ``release-matrix`` adds the mod matrix over MIDI CC to it, and
-``matrix-cc`` is that on its own; the ``diag-*`` builds check placement on hardware first."""
+``matrix-cc`` is that on its own; ``release-matrix`` also patches the OLED chip's image, so the envelope curve
+draws Decay and Release separately. The ``diag-*`` builds check placement on hardware first."""
 
 
 def main(argv: list[str] | None = None) -> int:

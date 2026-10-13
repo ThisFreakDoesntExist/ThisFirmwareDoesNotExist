@@ -5,7 +5,8 @@
 reads ``patches/release.hooks.json`` and its source (``patches/release.S``, or the
 spec's ``source``) and writes ``src/freakpatch/patches/release.json``. A spec with ``"combine": [names]``
 (``patches/release-matrix``) builds each named single-region spec and ships them as one patch with
-several ``parts``. Needs a clang with the Thumb target
+several ``parts``; its own ``drop_hooks`` (sites) put a part's hook back to stock, and its own ``edits``
+are added to the parts' edits. Needs a clang with the Thumb target
 (Apple clang and upstream LLVM both have it). The object must have no relocations:
 every stock address in the source is a literal constant.
 """
@@ -88,17 +89,26 @@ def build(base: Path) -> dict:
 
 def combine(spec: dict, parts: list[dict]) -> dict:
     """One patch from several single-region patches: each keeps its region, code and symbols."""
+    dropped = {int(d["site"], 16) for d in spec.get("drop_hooks", [])}
+    hooks = [h for p in parts for h in p["hooks"] if int(h["site"], 16) not in dropped]
+    if len(hooks) != sum(len(p["hooks"]) for p in parts) - len(dropped):
+        raise ValueError("a dropped hook is not a hook of any part")
+    own = {"name": spec["name"], "hooks": [], "edits": spec.get("edits", [])}
     regions = sorted((int(p["region"]["start"], 16), int(p["region"]["end"], 16), p["name"]) for p in parts)
     for (_, end, a), (start, _, b) in itertools.pairwise(regions):
         if start < end:
             raise ValueError(f"regions of {a} and {b} overlap")
-    spans = sorted((start, start + n, p["name"]) for p in parts for start, n in _site_spans(p))
-    for (_, end, a), (start, _, b) in itertools.pairwise(spans):
-        if start < end:
+    spans = sorted(
+        (image, start, start + n, p["name"])
+        for p in [*parts, own]
+        for image, start, n in _site_spans({**p, "hooks": [h for h in p["hooks"] if h in hooks]})
+    )
+    for (ia, _, end, a), (ib, start, _, b) in itertools.pairwise(spans):
+        if ia == ib and start < end:
             raise ValueError(f"{a} and {b} patch overlapping bytes at {start:#x}")
-    for start, end, name in spans:
+    for image, start, end, name in spans:
         for r_start, r_end, owner in regions:
-            if owner != name and start < r_end and r_start < end:
+            if image == "main" and owner != name and start < r_end and r_start < end:
                 raise ValueError(f"{name} patches {start:#x}, inside the code region of {owner}")
     symbols = [s for p in parts for s in p["symbols"]]
     if len(symbols) != len(set(symbols)):
@@ -114,17 +124,22 @@ def combine(spec: dict, parts: list[dict]) -> dict:
         "name": spec["name"],
         "description": spec["description"],
         "parts": [{k: p[k] for k in keys if k in p} for p in parts],
-        "hooks": [h for p in parts for h in p["hooks"]],
-        "edits": [e for p in parts for e in p["edits"]],
+        "hooks": hooks,
+        "edits": [e for p in [*parts, own] for e in p["edits"]],
         "options": {k: v for p in parts for k, v in p["options"].items()},
         **({"cc_table": tables[0]} if tables else {}),
     }
 
 
-def _site_spans(part: dict) -> list[tuple[int, int]]:
-    """(site, length) of every hook and edit: 4 bytes, a word, a movw, or a string's declared length."""
-    return [(int(h["site"], 16), 4) for h in part["hooks"]] + [
-        (int(e["site"], 16), int(e["length"]) if e["kind"] == "string" else 4) for e in part["edits"]
+def _site_spans(part: dict) -> list[tuple[str, int, int]]:
+    """(image, site, length) of every hook and edit: 4 bytes, a word, a movw, a halfword, or a string's length."""
+    return [("main", int(h["site"], 16), 4) for h in part["hooks"]] + [
+        (
+            e.get("image", "main"),
+            int(e["site"], 16),
+            int(e["length"]) if e["kind"] == "string" else 2 if e["kind"] == "half" else 4,
+        )
+        for e in part["edits"]
     ]
 
 

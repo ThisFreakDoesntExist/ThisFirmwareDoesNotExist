@@ -6,7 +6,8 @@ boot logo with any longer image. A patch's code goes into a code region inside t
 image that the patch itself makes unreachable (see ``docs/release-patch.md``; a combined
 build has one such region per part), stock
 instructions at the hook sites become branches into it, and a few single instructions
-or words are rewritten in place. No firmware bytes are shipped with the patcher:
+or words are rewritten in place. An edit can also target the OLED chip's image, which
+then keeps its length too and gets a fresh checksum. No firmware bytes are shipped with the patcher:
 everything else comes from the user's file.
 """
 
@@ -24,6 +25,11 @@ LATEST_VERSION = "5.0.0.2084"
 LATEST_SHA256 = "c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c"
 MAIN_BASE = 0x0800C000
 """Flash address of the first payload byte of the main image."""
+OLED_BASE = 0x08000000
+"""Flash address of the first payload byte of the OLED I/O chip image."""
+IMAGES = {"main": (mff.MAIN_IMAGE_PREFIX, MAIN_BASE), "oled": (mff.OLED_IMAGE_PREFIX, OLED_BASE)}
+"""Images an edit can target: file name prefix in the ``.mff`` and payload base address. Hooks and code regions are
+always in the main image."""
 STOCK_CCS = frozenset({2, 5, 9, 10, 12, 13, 23, 24, 26, 28, 29, 83, 91, 92, 93, 94, 102, 103, 105, 106})
 """MIDI CCs the stock firmware maps to parameters (read from the constructed parameter object)."""
 RESERVED_CCS = frozenset(
@@ -48,18 +54,23 @@ class Hook:
 @dataclass(frozen=True)
 class Edit:
     site: int
-    kind: str  # "movw", "word" or "string"
+    kind: str  # "movw", "word", "half" (one 16-bit Thumb instruction) or "string"
     value: int = 0
     reg: int = 0
     text: str = ""
     length: int = 0
     """For "string": the NUL-terminated text replaces ``length`` bytes, padded with NULs."""
+    image: str = "main"
+    """Key of ``IMAGES``: which image ``site`` is in."""
 
     @classmethod
     def from_spec(cls, e: dict[str, object]) -> Edit:
+        site, image = int(str(e["site"]), 16), str(e.get("image", "main"))
+        if image not in IMAGES:
+            raise PatchError(f"edit at {site:#010x}: unknown image {image!r}")
         if e["kind"] == "string":
-            return cls(int(str(e["site"]), 16), "string", text=str(e["text"]), length=int(str(e["length"])))
-        return cls(int(str(e["site"]), 16), str(e["kind"]), int(str(e["value"]), 16), int(str(e.get("reg", 0))))
+            return cls(site, "string", text=str(e["text"]), length=int(str(e["length"])), image=image)
+        return cls(site, str(e["kind"]), int(str(e["value"]), 16), int(str(e.get("reg", 0))), image=image)
 
     def encode(self) -> bytes:
         if self.kind == "movw":
@@ -69,6 +80,8 @@ class Edit:
             if len(data) > self.length:
                 raise PatchError(f"{self.text!r} does not fit {self.length} bytes")
             return data.ljust(self.length, b"\0")
+        if self.kind == "half":
+            return struct.pack("<H", self.value)
         return struct.pack("<I", self.value)
 
 
@@ -155,9 +168,17 @@ class Patch:
         offset = part.symbols[symbol]
         return [cc for cc in part.code[offset : offset + length] if cc]
 
-    def touched(self) -> set[int]:
-        """Payload offsets this patch may change."""
-        spans = [(h.site, 4) for h in self.hooks] + [(e.site, len(e.encode())) for e in self.edits]
+    def images(self) -> list[str]:
+        """Keys of ``IMAGES`` this patch changes, main first."""
+        return ["main", *sorted({e.image for e in self.edits} - {"main"})]
+
+    def touched(self, image: str = "main") -> set[int]:
+        """Payload offsets of ``image`` this patch may change."""
+        base = IMAGES[image][1]
+        spans = [(e.site, len(e.encode())) for e in self.edits if e.image == image]
+        if image != "main":
+            return {s - base + i for s, n in spans for i in range(n)}
+        spans += [(h.site, 4) for h in self.hooks]
         regions = {
             i for start, end in (p.region for p in self.parts) for i in range(start - MAIN_BASE, end - MAIN_BASE)
         }
@@ -222,36 +243,50 @@ def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
         encode = thumb.bl if hook.kind == "bl" else thumb.b_w
         offset = hook.site - MAIN_BASE
         payload[offset : offset + 4] = encode(hook.site, patch.address(hook.symbol))
+    payloads = {"main": payload}
     for edit in patch.edits:
-        offset = edit.site - MAIN_BASE
+        if edit.image not in payloads:
+            payloads[edit.image] = bytearray(mff.main_payload(update.read(update.image_name(IMAGES[edit.image][0]))))
+        offset = edit.site - IMAGES[edit.image][1]
         data = edit.encode()
-        payload[offset : offset + len(data)] = data
+        if not 0 <= offset <= len(payloads[edit.image]) - len(data):
+            raise PatchError(f"edit at {edit.site:#010x} is outside the {edit.image} image")
+        payloads[edit.image][offset : offset + len(data)] = data
 
-    out = update.with_member(name, mff.build_image(image[: mff.HEADER_LEN], bytes(payload))).to_bytes()
+    for key, data in payloads.items():
+        member = update.image_name(IMAGES[key][0])
+        update = update.with_member(member, mff.build_image(update.read(member)[: mff.HEADER_LEN], bytes(data)))
+    out = update.to_bytes()
     verify(raw, out, patch)
     return out
 
 
 def verify(raw: bytes, out: bytes, patch: Patch) -> None:
-    """Self-check a patched file: same length, and only the patch's own bytes changed."""
+    """Self-check a patched file: every image keeps its length, and only the patch's own bytes changed."""
     before, after = mff.Update.from_bytes(raw), mff.Update.from_bytes(out)
     if [m.info.filename for m in before.members] != [m.info.filename for m in after.members]:
         raise PatchError("member list changed")
-    name = before.main_name
+    names = {before.image_name(IMAGES[key][0]): key for key in patch.images()}
     for m in before.members:
-        if m.info.filename != name and after.read(m.info.filename) != m.data:
+        if m.info.filename not in names and after.read(m.info.filename) != m.data:
             raise PatchError(f"{m.info.filename} changed")
-    old_image, new_image = before.read(name), after.read(name)
-    if len(new_image) != len(old_image):
-        raise PatchError(f"main image is {len(new_image)} bytes, stock is {len(old_image)}: it must keep its length")
-    old, new = mff.main_payload(old_image), mff.main_payload(new_image)
-    changed = {i for i in range(len(old)) if old[i] != new[i]}
-    stray = changed - patch.touched()
-    if stray:
-        raise PatchError(f"unexpected change at {MAIN_BASE + min(stray):#010x}")
+    new = {}
+    for name, key in names.items():
+        base = IMAGES[key][1]
+        old_image, new_image = before.read(name), after.read(name)
+        if len(new_image) != len(old_image):
+            raise PatchError(
+                f"{key} image is {len(new_image)} bytes, stock is {len(old_image)}: it must keep its length"
+            )
+        old, new[key] = mff.main_payload(old_image), mff.main_payload(new_image)
+        changed = {i for i in range(len(old)) if old[i] != new[key][i]}
+        stray = changed - patch.touched(key)
+        if stray:
+            raise PatchError(f"unexpected change in the {key} image at {base + min(stray):#010x}")
     for hook in patch.hooks:
-        if thumb.branch_target(hook.site, new[hook.site - MAIN_BASE :]) != patch.address(hook.symbol):
+        if thumb.branch_target(hook.site, new["main"][hook.site - MAIN_BASE :]) != patch.address(hook.symbol):
             raise PatchError(f"hook at {hook.site:#010x} does not reach {hook.symbol}")
     for edit in patch.edits:
-        if (data := edit.encode()) != new[edit.site - MAIN_BASE : edit.site - MAIN_BASE + len(data)]:
+        offset = edit.site - IMAGES[edit.image][1]
+        if (data := edit.encode()) != new[edit.image][offset : offset + len(data)]:
             raise PatchError(f"edit at {edit.site:#010x} missing")
