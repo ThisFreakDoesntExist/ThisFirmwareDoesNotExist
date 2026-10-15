@@ -8,13 +8,14 @@ Read them in this order:
 2. [Main image](main-image.md): the CPU, the memory map, and the subsystems a patch is likely to touch.
 3. [Free space and dead code](free-space-and-dead-code.md): the two hard constraints, and where room for new code comes from.
 4. [Writing a patch](writing-a-patch.md): from an idea to a file that's safe to flash.
-5. [Oscillator engines](oscillator-engines.md): how engines are described and dispatched, and how to replace one.
-6. [The Release patch](release-patch.md): a complete worked example with every address justified.
-7. [The mod matrix over MIDI CC](matrix-cc.md): a second patch, and how two patches combine into one build.
-8. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
-9. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
-10. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
-11. [Related projects](related-projects.md): other open-source MicroFreak work.
+5. [Flash writes](flash-writes.md): every place the firmware writes internal or external flash, and how to keep a patch away from them.
+6. [Oscillator engines](oscillator-engines.md): how engines are described and dispatched, and how to replace one.
+7. [The Release patch](release-patch.md): a complete worked example with every address justified.
+8. [The mod matrix over MIDI CC](matrix-cc.md): a second patch, and how two patches combine into one build.
+9. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
+10. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
+11. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
+12. [Related projects](related-projects.md): other open-source MicroFreak work.
 
 ## Conventions
 
@@ -22,4 +23,4 @@ Read them in this order:
 - A Thumb **function pointer** has bit 0 set (`0x0802B8ED` points at the code at `0x0802B8EC`).
 - **Parameter ids** are written `0xGGII`: group `GG`, index `II` (`0x602` is group 6, index 2, the Dec/Rel knob).
 - Each fact is marked as **verified** (checked from the bytes, under emulation or on hardware) or **inferred** (a reading of the evidence that wasn't checked directly). Unmarked tables of addresses are verified.
-- Everything here was derived from the official firmware alone. Corrections are welcome: say how you checked.
+- Everything here was derived from the official firmware alone, except the bootloader section of [flash writes](flash-writes.md#the-bootloader), which describes the bootloader read from a unit (no bytes published). Corrections are welcome: say how you checked.

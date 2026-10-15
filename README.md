@@ -112,6 +112,7 @@ No surprises in the output either: it's deterministic. The default Release build
 | [Main image](docs/main-image.md)                               | MCU, memory map, interrupts, audio path, voices, parameters, presets, panel, screen, factory console           |
 | [Free space and dead code](docs/free-space-and-dead-code.md)   | Why the image can't grow, why "dead" functions usually aren't, which console handlers can be retired for space |
 | [Writing a patch](docs/writing-a-patch.md)                     | The patch format, hooks and edits, building, testing under emulation, flashing safely                          |
+| [Flash writes](docs/flash-writes.md)                           | Every flash writer (calibration, presets, settings), what to avoid, how to check it                            |
 | [Oscillator engines](docs/oscillator-engines.md)               | Engine IDs, the descriptor table, engine classes, and how to replace an engine                                 |
 | [The Release patch](docs/release-patch.md)                     | Every address the Release patch uses and how it was derived and checked: a worked example                      |
 | [The mod matrix over MIDI CC](docs/matrix-cc.md)               | The matrix as stock stores it, the six hooks, the CC table, the LED refresh, combined builds                   |
@@ -142,7 +143,7 @@ uv run ruff check . && uv run ruff format --check .
 
 Tests that read or emulate firmware use the file named by `FREAKPATCH_STOCK_MFF`, or MIDI Control Center's copy on macOS, and are skipped if neither is there. They run the real stock constructor, knob handler, preset saver and parser, and screen code with the patch in place.
 
-Contributions are welcome, especially new patches and corrections to the docs. Please keep the ground rules: derive everything from Arturia's official firmware, never commit firmware or bytes copied from it, and keep the main image at its stock length.
+Contributions are welcome, especially new patches and corrections to the docs. Please keep the ground rules: derive everything from Arturia's official firmware, never commit firmware or bytes copied from it, never write flash from a patch ([flash writes](docs/flash-writes.md)), and keep the main image at its stock length.
 
 ## Credits
 
