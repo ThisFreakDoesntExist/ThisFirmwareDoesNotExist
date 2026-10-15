@@ -9,6 +9,7 @@ A ThisFirmwareDoesNotExist patch is a small piece of Thumb code placed inside th
 3. **Keep the main image at its stock length.** A longer image doesn't boot ([why](free-space-and-dead-code.md#constraint-1-the-image-cant-grow)).
 4. **Prove "unreachable" from the raw bytes** with `tests/refscan.py`, never from a disassembler's listing.
 5. **Hook the path the hardware actually runs** (see [lessons](#lessons-from-hardware)).
+6. **Never write flash.** Don't call, hook or edit the firmware's flash writers, and persist new state through the stock preset saver. [Flash writes](flash-writes.md) lists them and how to check.
 
 ## Anatomy
 
@@ -107,6 +108,8 @@ emu.call(0x0802_3C2C, PARAMS, 0x602)    # call a stock function with up to 4 arg
 emu.set_regs(r4=VOICE, ...); emu.run(site, continue_at)   # run a hook site and stop where stock continues
 emu.stub(0x0804_4FDC, lambda e: e.set_regs(r0=BUFFER))    # replace a function you don't want to run
 ```
+
+Also check that the patch causes no flash writes stock wouldn't ([how](flash-writes.md#checking-under-emulation)).
 
 The most useful test shape runs the same site on the stock and patched image and compares every register: identical for inputs your patch shouldn't affect, and the intended difference for inputs it should. Then drive the **real entry point** a user's action reaches (the knob handler, the preset parser) end to end.
 
