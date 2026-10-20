@@ -1,0 +1,5 @@
+{
+  "name": "voice-modes",
+  "description": "release-matrix plus the voice modes: Delay (hold Paraphonic), Duo (Shift + Paraphonic from Unison), mode notices on screen, and a tempo-synced cycling envelope (Shift + Mode).",
+  "combine": ["release-matrix", "delay-voice", "duo", "mode-display", "cyc-sync"]
+}

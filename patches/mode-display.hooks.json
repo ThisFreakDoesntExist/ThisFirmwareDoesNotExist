@@ -1,0 +1,12 @@
+{
+  "name": "mode-display",
+  "description": "Voice-mode notices: a 3 s page naming the mode a Paraphonic gesture turned on or off.",
+  "source": "mode_display.S",
+  "region": {"start": "0x0807FE00", "end": "0x0807FF98", "was": "past the stock image (appended), after the delay voice"},
+  "hooks": [
+    {"site": "0x0802BE98", "kind": "word", "symbol": "notice", "was": "Duo's notice_fn word (0 = no notices)"},
+    {"site": "0x08052F1C", "kind": "b.w", "symbol": "popup_text", "was": "bne.w 0x08053284 (display manager, request 0x700's case)"}
+  ],
+  "edits": [],
+  "options": {}
+}

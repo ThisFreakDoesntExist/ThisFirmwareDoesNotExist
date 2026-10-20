@@ -1,0 +1,24 @@
+{
+  "name": "delay-voice",
+  "description": "Delay voice mode: hold Paraphonic 0.5 s with no key down and each note echoes 3 times on other voices, a dotted 1/8 apart, quieter each time.",
+  "source": "delay_voice.S",
+  "region": {"start": "0x0807FA60", "end": "0x0807FE00", "was": "past the stock image (appended); the first 16-byte boundary after it"},
+  "hooks": [
+    {"site": "0x080433F0", "kind": "b.w", "symbol": "para_btn", "was": "b.w 0x0803CA5C (Paraphonic press)"},
+    {"site": "0x0803F1E2", "kind": "b.w", "symbol": "para_btn", "was": "b.w 0x0803CA5C (Paraphonic release)"},
+    {"site": "0x0804866E", "kind": "bl", "symbol": "echo_on", "was": "bl 0x0804DA80 (voice allocator, paraphonic note-on)"},
+    {"site": "0x080493CC", "kind": "bl", "symbol": "echo_off", "was": "bl 0x0804DA80 (voice allocator, paraphonic note-off)"},
+    {"site": "0x0803A824", "kind": "bl", "symbol": "echo_tick", "was": "bl 0x08039DA4 (main-loop poll)"},
+    {"site": "0x0803751C", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8 (envelope level, voice mix)"},
+    {"site": "0x0803755A", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x0803763C", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x0803767C", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x08037AEA", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x08037AF8", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x08037B3E", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x08037B4A", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"},
+    {"site": "0x08037B6E", "kind": "bl", "symbol": "voice_level", "was": "bl 0x0800DCC8"}
+  ],
+  "edits": [],
+  "options": {}
+}

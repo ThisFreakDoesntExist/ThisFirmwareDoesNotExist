@@ -1,14 +1,18 @@
 """Apply a patch to the user's own official MicroFreak update file.
 
 Only the latest official firmware is accepted, identified by the SHA-256 of the whole
-``.mff``. The main image keeps its exact stock length: MicroFreak hardware hangs at the
-boot logo with any longer image. A patch's code goes into a code region inside the
-image that the patch itself makes unreachable (see ``docs/release-patch.md``; a combined
-build has one such region per part), stock
+``.mff``. A patch's code goes into code regions inside the image that the patch itself
+makes unreachable (see ``docs/release-patch.md``; a combined build has one such region
+per part), or after the stock image (``docs/free-space-and-dead-code.md``). Stock
 instructions at the hook sites become branches into it, and a few single instructions
 or words are rewritten in place. An edit can also target the OLED chip's image, which
-then keeps its length too and gets a fresh checksum. No firmware bytes are shipped with the patcher:
+keeps its length and gets a fresh checksum. No firmware bytes are shipped with the patcher:
 everything else comes from the user's file.
+
+The main image keeps its stock length unless a part is appended. Then it grows to cover
+the appended code: zeros up to ``APPEND_BASE``, ``0xFF`` (erased flash) after it, and
+``0xFF`` padding so the image (header, payload and checksum byte) is a multiple of 16
+bytes. The bootloader hangs on a last block that isn't a whole number of words.
 """
 
 from __future__ import annotations
@@ -25,6 +29,14 @@ LATEST_VERSION = "5.0.0.2084"
 LATEST_SHA256 = "c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c"
 MAIN_BASE = 0x0800C000
 """Flash address of the first payload byte of the main image."""
+MAIN_END = 0x08080000
+"""End of the flash the bootloader erases for the main image (sectors 3-7): payload and checksum byte must end by
+here."""
+APPEND_BASE = 0x0807FA60
+"""First 16-byte boundary after the stock main payload (which ends at ``0x0807FA5F``, where its checksum byte is
+flashed): appended code starts here or later."""
+APPEND_ALIGN = 16
+"""An image with appended code is padded to a multiple of this, header and checksum byte included."""
 OLED_BASE = 0x08000000
 """Flash address of the first payload byte of the OLED I/O chip image."""
 IMAGES = {"main": (mff.MAIN_IMAGE_PREFIX, MAIN_BASE), "oled": (mff.OLED_IMAGE_PREFIX, OLED_BASE)}
@@ -213,18 +225,35 @@ def _check_cc_table(patch: Patch, release_cc: int | None) -> None:
         raise PatchError(f"{patch.name}: its CC table uses CCs it must not: {sorted(clash) or ccs}")
 
 
+def grown(payload: bytes, patch: Patch) -> bytearray:
+    """The stock main ``payload`` extended to hold ``patch``'s appended code, with its fill and padding but not the
+    code; unchanged if nothing is appended."""
+    out = bytearray(payload)
+    ends = [p.region[0] + len(p.code) for p in patch.parts if p.region[0] >= APPEND_BASE]
+    if not ends:
+        return out
+    out += bytes(APPEND_BASE - MAIN_BASE - len(out))
+    out += b"\xff" * (max(ends) - MAIN_BASE - len(out))
+    out += b"\xff" * (-(mff.HEADER_LEN + len(out) + 1) % APPEND_ALIGN)
+    if MAIN_BASE + len(out) + 1 > MAIN_END:
+        raise PatchError(f"{patch.name}: the padded main image passes {MAIN_END:#x}")
+    return out
+
+
 def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
     """The patched ``.mff`` for the official update file ``raw``."""
     check_latest(raw)
     update = mff.Update.from_bytes(raw)
     name = update.main_name
     image = update.read(name)
-    payload = bytearray(mff.main_payload(image))
+    stock_end = MAIN_BASE + len(mff.main_payload(image))
+    payload = grown(mff.main_payload(image), patch)
 
     codes = {}
     for part in patch.parts:
         start, end = part.region
-        if start % 4 or len(part.code) > end - start or end > MAIN_BASE + len(payload):
+        limit = MAIN_END - 1 if start >= APPEND_BASE else stock_end
+        if start % 4 or len(part.code) > end - start or end > limit:
             raise PatchError(f"{patch.name}: code does not fit its region {start:#x}-{end:#x}")
         codes[start] = bytearray(part.code)
     if release_cc is not None:
@@ -262,7 +291,8 @@ def apply(raw: bytes, patch: Patch, release_cc: int | None = None) -> bytes:
 
 
 def verify(raw: bytes, out: bytes, patch: Patch) -> None:
-    """Self-check a patched file: every image keeps its length, and only the patch's own bytes changed."""
+    """Self-check a patched file: every image keeps its length (the main image grows only by the patch's appended code,
+    fill and padding), and only the patch's own bytes changed."""
     before, after = mff.Update.from_bytes(raw), mff.Update.from_bytes(out)
     if [m.info.filename for m in before.members] != [m.info.filename for m in after.members]:
         raise PatchError("member list changed")
@@ -274,11 +304,11 @@ def verify(raw: bytes, out: bytes, patch: Patch) -> None:
     for name, key in names.items():
         base = IMAGES[key][1]
         old_image, new_image = before.read(name), after.read(name)
-        if len(new_image) != len(old_image):
-            raise PatchError(
-                f"{key} image is {len(new_image)} bytes, stock is {len(old_image)}: it must keep its length"
-            )
         old, new[key] = mff.main_payload(old_image), mff.main_payload(new_image)
+        if key == "main":
+            old = bytes(grown(old, patch))
+        if len(new[key]) != len(old):
+            raise PatchError(f"{key} image payload is {len(new[key])} bytes, it should be {len(old)}")
         changed = {i for i in range(len(old)) if old[i] != new[key][i]}
         stray = changed - patch.touched(key)
         if stray:

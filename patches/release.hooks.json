@@ -1,7 +1,7 @@
 {
   "name": "release",
   "description": "Separate Release: Dec/Rel knob sets decay only (shown as Decay); Shift + Dec/Rel and a MIDI CC set Release, saved in presets and shown on screen.",
-  "region": {"start": "0x0802BB60", "end": "0x0802BD10", "was": "console 'flag', 'help' and 'gpio' handlers, retired by the slot edits"},
+  "region": {"start": "0x0802BB60", "end": "0x0802BD10", "was": "console 'sync', 'oled' and 'boot' handlers, retired by the slot edits"},
   "hooks": [
     {"site": "0x0801103C", "kind": "bl", "symbol": "reg_group", "was": "bl 0x0800E730 (constructor, after group 19)"},
     {"site": "0x08034194", "kind": "b.w", "symbol": "diff_check", "was": "ldrsh r2,[r4,r2]; ldrsh r3,[r4,r3] (Dec/Rel changed?)"},
@@ -18,9 +18,9 @@
   "edits": [
     {"site": "0x08034A3C", "kind": "movw", "reg": 1, "value": "0x1400", "was": "movw r1,#0x602 (AR envelope on mode change)"},
     {"site": "0x08037C1C", "kind": "movw", "reg": 1, "value": "0x1400", "was": "movw r1,#0x602 (AR envelope on voice reset)"},
-    {"site": "0x08074054", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BB61, console 'flag' handler -> stock bx lr stub"},
-    {"site": "0x08074034", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BC01, console 'help' handler -> stock bx lr stub"},
-    {"site": "0x08073FD4", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BC85, console 'gpio' handler -> stock bx lr stub"},
+    {"site": "0x08074054", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BB61, console 'sync' handler -> stock bx lr stub"},
+    {"site": "0x08074034", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BC01, console 'oled' handler -> stock bx lr stub"},
+    {"site": "0x08073FD4", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BC85, console 'boot' handler -> stock bx lr stub"},
     {"site": "0x0806298C", "kind": "string", "text": "Decay", "length": 8, "was": "\"Dec/Rel\", the screen name of 0x602"}
   ],
   "options": {

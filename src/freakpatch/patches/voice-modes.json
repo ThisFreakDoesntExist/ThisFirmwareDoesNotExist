@@ -1,0 +1,534 @@
+{
+  "name": "voice-modes",
+  "description": "release-matrix plus the voice modes: Delay (hold Paraphonic), Duo (Shift + Paraphonic from Unison), mode notices on screen, and a tempo-synced cycling envelope (Shift + Mode).",
+  "parts": [
+    {
+      "name": "release",
+      "region": {
+        "start": "0x0802BB60",
+        "end": "0x0802BD10",
+        "was": "console 'sync', 'oled' and 'boot' handlers, retired by the slot edits"
+      },
+      "source_sha256": "dfc57f5b209c298865de2ba16aedbc27b916d618a669ecccdd072733092f9074",
+      "symbols": {
+        "ar_main": 100,
+        "curve_time": 280,
+        "diff_check": 52,
+        "format_release": 298,
+        "load_preset": 162,
+        "reg_group": 0,
+        "rel_main": 84,
+        "release_cc": 400,
+        "shift_alt": 218,
+        "shift_pot": 192,
+        "show_release": 262,
+        "show_release_tick": 244
+      },
+      "code": "1fb584b04f4c432363709ff88431a3704d4b00935fa30193012302934b492246a31cdff82cc1e04704b0bde81f40dff824c16047a25ee35e9a4209d103b444f2b600215a8430205a884203bc18bf531cdff804f101b500f00df8bde80140dff8fcc0604701b500f005f8bde80140dff8f0c0604744f2b602a25a44f24c03e35e9a420dd012f4004f0ad1002b07dd09b202fb01f191fbf3f181f30f0170471146704710b5294c4ff6ff732380dff8b4c0e0472388db0b02d02b4b1b88238010bd40f20264a54202d141f2004503e05c0701d50135adb2dff894f040f20264a54202d141f2004503e05c0701d50135adb2dff87cf0b6f5a05f01d1dff878f040f20353dff874f0b5f5a05f01d1dff86cf040f20353dff868f0f988b1f5a05f08bf41f20040dff85cc06047b4f5a05f04d182b00d460646dff850f040f20363dff84cf00000d8c901208729060872da0120b5e7000831e70008994103088ddc000859440108094e050808da012053020408132c04081d2c0508b32b0508ad1a0508151a05087ded04085be4040811e404084800bf0052656c6561736500"
+    },
+    {
+      "name": "matrix-cc",
+      "region": {
+        "start": "0x0802CA94",
+        "end": "0x0802CC04",
+        "was": "console 'synth' test handler, retired by the 0x080740D4 edit"
+      },
+      "source": "matrix_cc.S",
+      "source_sha256": "1619acf89f964f1b9770ba7a30e867d859e6339c2f0656c6c6dc0ec74b1802ea",
+      "symbols": {
+        "matrix_boot": 0,
+        "matrix_cc_in": 60,
+        "matrix_cc_out": 192,
+        "matrix_ccs": 288,
+        "matrix_local": 232,
+        "matrix_local2": 250,
+        "matrix_send_cc": 212
+      },
+      "code": "70b5dff808c1e04745a4414d0026a35d83b10522b6fbf2f000fb12610a3005eb430282f84c1182f84d0105eb8002d2f8ec2053540136232ee9d170bdc9f30723a9f5206cbcf5e06f0ed244f2810ce045a8f580484fea480808bf4ff000081fb500f003f8bde81f40704710b5294c2079012824d15ffa89f1c9f30723a3f10a02234800eb8300c06a30f81100002818bf01205fea084314bf0123002398420ed0120642ea014141f2f70211435b424ff67f721a4018480123dff860c0e04710bd2d12a3f52061b1f5e06f3cbf80356d10e9b270473f12a5f52061b1f5e06f3cbf80377f10f9b27047db5da4f10a0cbcf1060f98bf7f237f2b70475b5da6f10a0cbcf1060f98bf7f237f2b704711eb000898c80120a4350020a0050020151402080e0f141516191b1e1f0355565750595a00686b6c6d6e6f70717273747576774b4c4d4e00"
+    },
+    {
+      "name": "delay-voice",
+      "region": {
+        "start": "0x0807FA60",
+        "end": "0x0807FE00",
+        "was": "past the stock image (appended); the first 16-byte boundary after it"
+      },
+      "source": "delay_voice.S",
+      "source_sha256": "74eb02b21f43760000e96e12823b6a955f5673fced11599fb75b367fd433bc09",
+      "symbols": {
+        "echo_off": 516,
+        "echo_on": 386,
+        "echo_tick": 620,
+        "para_btn": 0,
+        "voice_level": 794
+      },
+      "code": "49b107b500f04ef8d04b5860bde80740dff83cc3604770b5044600f043f8cb4b5a68851a40f2007000f039f806462046002100f031f840f2f41085420ad240f2007000f02cf830bbc04b1a781ab300f02cf820e040f2077000f021f8d8b9bb4b1a7842b100f021f840f2007000f017f8b04210d00be001221a705a7000f012f8b24b986040f2007000f009f818b92046002100f001f870bddff8b4c26047dff8b4c26047dff8b0c2604770b5a74b00221a701a615a6103f128043025606830b100216160c1b2802908bf00f001f90834013df3d140f20070fff7e1ff00f001f870bd10b5002814bf4ff6007200229b499b480123dff86cc2e04710bd9a48008840f6b831884238bf42f6e0609749b1fbf0f07047964a13780232a3b192f800c0bcf1000f0cd092f802c0844508d192f801c0bcf1030f06d88e4a22f81c1070470c32013be9e7704770b58b4c30250026d4f804c0bcf1000f06d126b1306071602260636070bd26460834013df0d170bd8249420901eb820100f01f020120904070472de9f0410c46dff8f4c1e047c4f306252846fff7ecff0a6802430a6028460021fff7b7ff694b187848b340f20770fff775ff20bbfff7a1ff0746fff772ff8046624b08eb0700986058780121597010b90120fff785ff012607fb068000eb07020a3a24f07f4141ea06612b0243f0800343ea0663fff7a7ff0136042eecd1bde8f0812de9f0410c46dff874c1e047c4f306252846fff7abff0a6882430a60fff76cff0746fff73dff8046a7f10a0e514e30247168c8b2802812d1c1f30620a8420ed1090e01fb07f23068831ab3eb0e03a8eb030cf44503d203eb0200604430600836013ce5d1bde8f081f1b5fff719ff0546354ce168a94224d0e560207888b1a168691a0ed4667886f001066670fff734ff3c38002e08bf3c202844a0603046fff71eff04f128063027716839b13068281a04d400207060084600f008f80836013ff2d1bde8f140dff8b8c0604770b50446c4f306252846fff749ff0968014219d1e1b290290fd1214824f07f4100220123dff888c0e047210e23a232f811102846fff706ff06e01948a1b200220023dff86cc0e04770bd0eb51a49411ab0f8640045f6e4120023914204d3891a0133042b08d2f8e70e4931f8131019b1c1f500414843c00b0ebd000000f301205dca030815b80308d95e0508f5000700a005002015140208ec3e002020aa44008443002010f3012028f3012018f3012081da0408a59d0308c089002000003333ec515a64"
+    },
+    {
+      "name": "duo",
+      "region": {
+        "start": "0x0802BE90",
+        "end": "0x0802C132",
+        "was": "console 'codec' handler, retired by the 0x08074094 edit"
+      },
+      "source": "duo.S",
+      "source_sha256": "7e446e2ea5c8f4c0316a45f70d6b3ced05f8913ddd0d895ec451328c4feb5225",
+      "symbols": {
+        "duo_btn": 12,
+        "duo_tick": 170
+      },
+      "code": "61fa0708cdfc070801fe070870b504460d46834e2db300f0abf8307500f00305a2681278012a01d0002511e040f205700ff0a8fcb080307850b10420b070794829f094fe012084f8600084f8610005e0b570204601215ff858c0e04700f02df870bd204600215ff868c0e047b5780020b070033d012d09d840f205700ff082fcb188884202d185f00100307000f015f800f06ef8317d41405ff8943018bf002bbde8704018bf184770471fb500f005f8bde81f405ff8b4c0604770b5584c0025207810b100f04af8054625706678b54220d0657004f10c0085f0010100f086f855b15148007808b153f0c7fd0320e07029f0aaffa06013e000f059f800f02ef84a4981f8390040f200700ff03bfc53f0d0fd70bd0db34da0022100f067f818b94aa0012100f062f84049002081f8390029f08affa168411a0fd4e178013101f00301e17043a232f811201044a06081f0010000f0010053f0acfd70bd08b500f007f800f0030003280cbf0120002008bd10b540f200700ff005fc041e18bf012440f207700ff0fefb47f6ff71884208bf44f002042449097801b1043414f0020f03d01f49097801b10834204610bd10b540f207700ff0e6fb002147f6ff72904208bf032145f25552904208bf022118481df0e4fe40f200700ff0d4fb012108b11448018812481df00ffd10bd70b5124e12a2002332f91340355d09b9c55408e010f803c0012902d106f804c001e0654504d10133082bedd3012070bd002070bdb0f40120140a002000f30120143700207837002010b201208443002000004a004b00d9f6daf6dbf6ddf6def6040102020202007f3c0078003c00f802"
+    },
+    {
+      "name": "mode-display",
+      "region": {
+        "start": "0x0807FE00",
+        "end": "0x0807FF98",
+        "was": "past the stock image (appended), after the delay voice"
+      },
+      "source": "mode_display.S",
+      "source_sha256": "0a0c632ff3a7f3334e38e8b4bc86f46950014ecd85eac97499fc8b3927ca7b02",
+      "symbols": {
+        "notice": 0,
+        "popup_text": 66
+      },
+      "code": "02220423194211d103220823194207d018420bd101220223184207d1032205e001220223194201d100220123184218bf42f0040221490a70214840f20071d5f73fbd30b484b01e4840f6b831c1671b490d7805f003011fa050f8214021a0465c684614f8012b00f8012b013ef9d115f0040f14bf134c144c14f8012b00f8012b002af9d16c46051b104800217f22d5f7abfc042d2cbf04222a460c482146a418ad1ad5f7a1fc002df3d108481221084ad5f774fc04b030bcd3f759b8c9f40120140a00202a5707081a570708f4df0120001a000210570708e8fe0708effe0708f5fe07080a070604556e69736f6e0a44656c61790a44756f0a00bf00"
+    },
+    {
+      "name": "cyc-sync",
+      "region": {
+        "start": "0x0807FF98",
+        "end": "0x0807FFFF",
+        "was": "past the stock image (appended), the last bytes before the checksum byte"
+      },
+      "source_sha256": "12d829e616e15f62a60ebcea38ddf123094abbf0c01e4195728057d13607a414",
+      "symbols": {
+        "ui_event": 0
+      },
+      "code": "0a6822f47f4240f22003c0f202039a4216d18a88b2f5807f12d10b4b4a78012a09d10a4a12785ab11a7882f001021a7001225a7070475a7812b100225a70704730b50c46a1f7fcbcd0f401206c450020"
+    },
+    {
+      "name": "cyc-sync.text.b",
+      "region": {
+        "start": "0x0802C2F4",
+        "end": "0x0802C3E2",
+        "was": "console 'gpio' handler, retired by the 0x08073FF4 edit"
+      },
+      "source_sha256": "12d829e616e15f62a60ebcea38ddf123094abbf0c01e4195728057d13607a414",
+      "symbols": {
+        "sync_tick": 4
+      },
+      "code": "3bbf0208f1b5284c28480068a168a060e268274b9a4201d1884205d2e360002222604ff6ff72a280257800210db121490988a288914202d0a18001f093f81e48b0f9000080f30f0000eb4000c00b022888bf0220061da178b14202d0a6700121e170012745b115480068f021b0fbf1f000f0010080f00107e178b9420ed0e77041f2f701c0f2060141ea06614ff67f727b421a400a480123f5f742f8bde8f1405ff8a4c060470000d0f40120d8e10120c0e7c5c7ec3e00207ada0120a03e0020a0050020"
+    },
+    {
+      "name": "cyc-sync.text.c",
+      "region": {
+        "start": "0x0802D44C",
+        "end": "0x0802D530",
+        "was": "console 'flag' handler, retired by the 0x080740B4 edit"
+      },
+      "source_sha256": "12d829e616e15f62a60ebcea38ddf123094abbf0c01e4195728057d13607a414",
+      "symbols": {
+        "decay_set": 64,
+        "fall_set": 72,
+        "rise_set": 56
+      },
+      "code": "91dd0008a9dd0008c1dd000810b5264c04f5ae70b4f9081000f00ef804f5ae70b4f90c1000f00cf804f5ae70b4f90c10bde8104000f008b85ff83c30142206e05ff84030182202e05ff844301c2207b59847bde8074015b50846fef779fca3b10aa333f8101005bc40f680435943036c1b0a0e4c248863434c1e2344b3fbf1f3012b38bf0123835010bd15bd03000400060008000c0010001800200030006000c000800100030000dcaf0120ec3e0020"
+    },
+    {
+      "name": "cyc-sync.text.d",
+      "region": {
+        "start": "0x0802BD94",
+        "end": "0x0802BE90",
+        "was": "console 'cvout' handler, retired by the 0x08074134 edit"
+      },
+      "source_sha256": "12d829e616e15f62a60ebcea38ddf123094abbf0c01e4195728057d13607a414",
+      "symbols": {
+        "graph_value": 32,
+        "value_text": 60
+      },
+      "code": "7ded040805e404081d4b1b783bb180f30f000d214843c00b0c2888bf0c20704710b55ff824c0e047fff7eeff2bb140000130c0031a21b0fbf1f010bd104b1b78dbb18ab240f201239a4202d002339a4213d101b5104622f0c7fffff7d8ffc0f10c00084951f82010bde8014011f8012b00f8012b002af9d170475ff878c06047d0f4012078230608"
+    }
+  ],
+  "hooks": [
+    {
+      "site": "0x0801103C",
+      "kind": "bl",
+      "symbol": "reg_group",
+      "was": "bl 0x0800E730 (constructor, after group 19)"
+    },
+    {
+      "site": "0x08034194",
+      "kind": "b.w",
+      "symbol": "diff_check",
+      "was": "ldrsh r2,[r4,r2]; ldrsh r3,[r4,r3] (Dec/Rel changed?)"
+    },
+    {
+      "site": "0x08034682",
+      "kind": "bl",
+      "symbol": "rel_main",
+      "was": "bl 0x0800DC8C (amp envelope release)"
+    },
+    {
+      "site": "0x080346A2",
+      "kind": "bl",
+      "symbol": "ar_main",
+      "was": "bl 0x08014458 (AR envelope release)"
+    },
+    {
+      "site": "0x08055740",
+      "kind": "bl",
+      "symbol": "load_preset",
+      "was": "bl 0x08054E08 (preset parser)"
+    },
+    {
+      "site": "0x0804038A",
+      "kind": "b.w",
+      "symbol": "shift_pot",
+      "was": "lsls r4,r3,#29; bpl.w (Shift alternate, pot handler)"
+    },
+    {
+      "site": "0x08042D6A",
+      "kind": "b.w",
+      "symbol": "shift_alt",
+      "was": "lsls r4,r3,#29; bpl.w (Shift alternate, encoder handler)"
+    },
+    {
+      "site": "0x08052BAE",
+      "kind": "b.w",
+      "symbol": "show_release_tick",
+      "was": "movw r3,#0x503 (OLED popup switch in the UI tick)"
+    },
+    {
+      "site": "0x08051A10",
+      "kind": "b.w",
+      "symbol": "show_release",
+      "was": "movw r3,#0x503 (OLED popup dispatcher)"
+    },
+    {
+      "site": "0x0804E40C",
+      "kind": "b.w",
+      "symbol": "format_release",
+      "was": "movw r3,#0x603 (value formatter)"
+    },
+    {
+      "site": "0x08043530",
+      "kind": "bl",
+      "symbol": "matrix_boot",
+      "was": "bl 0x0800EB10 (parameter object constructor, its only call)"
+    },
+    {
+      "site": "0x080479D6",
+      "kind": "bl",
+      "symbol": "matrix_cc_in",
+      "was": "ubfx r3,r9,#8,#8 (MIDI in: group of the CC's parameter)"
+    },
+    {
+      "site": "0x08023A02",
+      "kind": "bl",
+      "symbol": "matrix_cc_out",
+      "was": "asrs r5,r5,#8; uxtb r1,r5 (MIDI out: CC value in the parameter-change listener)"
+    },
+    {
+      "site": "0x08026874",
+      "kind": "bl",
+      "symbol": "matrix_send_cc",
+      "was": "asrs r7,r7,#8; uxtb r1,r7 (MIDI out: CC value in the set-and-send function)"
+    },
+    {
+      "site": "0x08023C82",
+      "kind": "bl",
+      "symbol": "matrix_local",
+      "was": "ldrb r3,[r3,r7]; cmp r3,#0x7f (setter: Local Off refuses CC parameters)"
+    },
+    {
+      "site": "0x08024756",
+      "kind": "bl",
+      "symbol": "matrix_local2",
+      "was": "ldrb r3,[r3,r5]; cmp r3,#0x7f (second setter: the same gate)"
+    },
+    {
+      "site": "0x0804866E",
+      "kind": "bl",
+      "symbol": "echo_on",
+      "was": "bl 0x0804DA80 (voice allocator, paraphonic note-on)"
+    },
+    {
+      "site": "0x080493CC",
+      "kind": "bl",
+      "symbol": "echo_off",
+      "was": "bl 0x0804DA80 (voice allocator, paraphonic note-off)"
+    },
+    {
+      "site": "0x0803751C",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8 (envelope level, voice mix)"
+    },
+    {
+      "site": "0x0803755A",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x0803763C",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x0803767C",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x08037AEA",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x08037AF8",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x08037B3E",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x08037B4A",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x08037B6E",
+      "kind": "bl",
+      "symbol": "voice_level",
+      "was": "bl 0x0800DCC8"
+    },
+    {
+      "site": "0x080433F0",
+      "kind": "b.w",
+      "symbol": "duo_btn",
+      "next": "btn_next",
+      "target": "0x0803CA5C",
+      "was": "b.w to the Paraphonic handler (Paraphonic press)"
+    },
+    {
+      "site": "0x0803F1E2",
+      "kind": "b.w",
+      "symbol": "duo_btn",
+      "next": "btn_next",
+      "target": "0x0803CA5C",
+      "was": "b.w to the Paraphonic handler (Paraphonic release)"
+    },
+    {
+      "site": "0x08052F1C",
+      "kind": "b.w",
+      "symbol": "popup_text",
+      "was": "bne.w 0x08053284 (display manager, request 0x700's case)"
+    },
+    {
+      "site": "0x080219D4",
+      "kind": "b.w",
+      "symbol": "ui_event",
+      "was": "push {r4,r5,lr}; mov r4,r1 (UI event entry; ui_event re-runs them)"
+    },
+    {
+      "site": "0x080125A4",
+      "kind": "bl",
+      "symbol": "rise_set",
+      "next": "rise_next",
+      "target": "0x0800DD90",
+      "was": "bl to the Rise setter (cycling env update)"
+    },
+    {
+      "site": "0x08012656",
+      "kind": "bl",
+      "symbol": "decay_set",
+      "next": "decay_next",
+      "target": "0x0800DDA8",
+      "was": "bl to the Decay setter (cycling env update)"
+    },
+    {
+      "site": "0x0801265E",
+      "kind": "bl",
+      "symbol": "fall_set",
+      "next": "fall_next",
+      "target": "0x0800DDC0",
+      "was": "bl to the Fall setter (cycling env update)"
+    },
+    {
+      "site": "0x0801522C",
+      "kind": "bl",
+      "symbol": "rise_set",
+      "next": "rise_next",
+      "target": "0x0800DD90",
+      "was": "bl to the Rise setter (engine-rate set-up)"
+    },
+    {
+      "site": "0x08015284",
+      "kind": "bl",
+      "symbol": "decay_set",
+      "next": "decay_next",
+      "target": "0x0800DDA8",
+      "was": "bl to the Decay setter (engine-rate set-up)"
+    },
+    {
+      "site": "0x08015290",
+      "kind": "b.w",
+      "symbol": "fall_set",
+      "next": "fall_next",
+      "target": "0x0800DDC0",
+      "was": "b.w to the Fall setter (engine-rate set-up, tail call)"
+    },
+    {
+      "site": "0x0803A824",
+      "kind": "bl",
+      "symbol": "sync_tick",
+      "next": "tick_next",
+      "target": "0x08039DA4",
+      "was": "bl to the main-loop poll"
+    },
+    {
+      "site": "0x0804F5AC",
+      "kind": "bl",
+      "symbol": "graph_value",
+      "next": "graph_next",
+      "target": "0x0804ED7C",
+      "was": "bl to the param value getter (cycling-env popup, Rise)"
+    },
+    {
+      "site": "0x0804F5DC",
+      "kind": "bl",
+      "symbol": "graph_value",
+      "next": "graph_next",
+      "target": "0x0804ED7C",
+      "was": "bl to the param value getter (cycling-env popup, Fall)"
+    },
+    {
+      "site": "0x0804F6D4",
+      "kind": "bl",
+      "symbol": "value_text",
+      "next": "text_next",
+      "target": "0x0804E404",
+      "was": "bl to the value-text formatter (cycling-env popup)"
+    }
+  ],
+  "edits": [
+    {
+      "site": "0x08034A3C",
+      "kind": "movw",
+      "reg": 1,
+      "value": "0x1400",
+      "was": "movw r1,#0x602 (AR envelope on mode change)"
+    },
+    {
+      "site": "0x08037C1C",
+      "kind": "movw",
+      "reg": 1,
+      "value": "0x1400",
+      "was": "movw r1,#0x602 (AR envelope on voice reset)"
+    },
+    {
+      "site": "0x08074054",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BB61, console 'sync' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x08074034",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BC01, console 'oled' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x08073FD4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BC85, console 'boot' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x0806298C",
+      "kind": "string",
+      "text": "Decay",
+      "length": 8,
+      "was": "\"Dec/Rel\", the screen name of 0x602"
+    },
+    {
+      "site": "0x080740D4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802CA95, console 'synth' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x0804F7E0",
+      "kind": "movw",
+      "reg": 0,
+      "value": "0x1400",
+      "was": "movw r0,#0x605 (envelope popup: slot 4, the filter envelope amount the OLED never reads, becomes Release)"
+    },
+    {
+      "site": "0x08008342",
+      "image": "oled",
+      "kind": "half",
+      "value": "0x9E02",
+      "was": "uxth r1,r1 -> ldr r6,[sp,#8] (curve renderer: r6 = the pushed 4th byte, Release)"
+    },
+    {
+      "site": "0x0800835E",
+      "image": "oled",
+      "kind": "half",
+      "value": "0x08B6",
+      "was": "uxth r1,r1 -> lsrs r6,r6,#2 (r6 = release width, was the decay width)"
+    },
+    {
+      "site": "0x08074094",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BE91, console 'codec' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x0807624C",
+      "kind": "string",
+      "text": "Spread/Detune",
+      "length": 14,
+      "was": "Utility menu label \"Unison Spread\""
+    },
+    {
+      "site": "0x08073FF4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802C2F5, console 'gpio' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x080740B4",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802D44D, console 'flag' handler -> stock bx lr stub"
+    },
+    {
+      "site": "0x08074134",
+      "kind": "word",
+      "value": "0x0802B8ED",
+      "was": "0x0802BD95, console 'cvout' handler -> stock bx lr stub"
+    }
+  ],
+  "options": {
+    "release_cc": {
+      "symbol": "release_cc",
+      "default": 72
+    }
+  },
+  "cc_table": {
+    "symbol": "matrix_ccs",
+    "length": 35
+  }
+}

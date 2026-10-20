@@ -33,7 +33,7 @@ ENV = 0x2001_0000
 VOICE = 0x2000_8000
 SNAP_D, SNAP_R, PREV = 0x404C, 0x40B6, 0x84
 REGION = (0x0802_BB60, 0x0802_BD10)
-CONSOLE_SLOTS = {0x0807_4054: 0x0802_BB61, 0x0807_4034: 0x0802_BC01, 0x0807_3FD4: 0x0802_BC85}  # flag, help, gpio
+CONSOLE_SLOTS = {0x0807_4054: 0x0802_BB61, 0x0807_4034: 0x0802_BC01, 0x0807_3FD4: 0x0802_BC85}  # sync, oled, boot
 STUB = 0x0802_B8ED
 SCAN_NOISE = 0x0802_B7B2
 """Second halfword of the stock `push.w` at 0x0802B7B0; it decodes as a literal load into the region."""
