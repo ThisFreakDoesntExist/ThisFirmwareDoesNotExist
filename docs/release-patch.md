@@ -20,7 +20,7 @@ The patch adds only what stock can't do by itself:
 
 Modulation applied to Dec/Rel scales Release in the same proportion (`R' = R · D'/D`), and Release equal to Decay gives exactly the stock value.
 
-The code is 412 bytes, placed over the factory console's `flag`, `help` and `gpio` handlers (432 bytes), which the patch retires.
+The code is 412 bytes, placed over the factory console's `sync`, `oled` and `boot` handlers (432 bytes), which the patch retires.
 
 **Limit:** the envelope curve on the screen is drawn by the OLED co-processor from a single decay/release time. While the Release popup is open the patch sends Release's time, so the whole curve follows Release. The `release-matrix` build draws separate decay and release segments instead, by also patching the OLED chip's firmware (image 1): see [Separate decay and release segments](#separate-decay-and-release-segments-release-matrix).
 
@@ -36,7 +36,7 @@ Addresses are flash addresses with the 64-byte image header stripped and the ima
 
 - The main image payload ends at `0x0807FA60` (trailing checksum byte at `0x0807FA5F`).
 - The reset handler `0x0805F848` copies `.data` from flash `0x0807F75C`, `0x2F4` bytes long, to `0x20000000`, then zeroes `.bss` from `0x200002F8` to `0x2001F230`. The stack is `0x2001F230–0x20020000`.
-- **Hardware:** an image longer than stock hangs at the boot logo. Two flashes showed this, both accepted by MIDI Control Center: the old appended build (+457 bytes, 8 hooks), and the same 457 bytes appended with **no hooks** (diag B). So the area after `0x0807FA60` can't be used, and the patcher keeps the image at its stock length. Why longer images fail is unknown.
+- **Hardware:** the first appended build (+457 bytes, 8 hooks) hung at the boot logo, and so did the same 457 bytes appended with **no hooks** (diag B). So the Release patch was rewritten to fit inside the stock length. The cause was found later: both images' length wasn't a whole number of words, which the bootloader rejects. A padded appended image boots ([details](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)), and `voice-modes` appends its code that way. Release itself still fits inside the stock image.
 
 ### Code region: retired console commands
 
@@ -51,19 +51,19 @@ The image has no usable padding. Its few zero runs sit inside data tables, and d
 
 The patch therefore makes a region unreachable itself:
 
-- The console has one handler object per top-level command, 0x20 bytes each, starting at `0x08073FD0`. Method 0 is the command entry. Commands are numbered by the name table at `0x08073CD8`: gpio 0, codec 1, cvout 2, help 3, flag 4, **audio 5**, filter 6, ioc 7, **synth 8**, boot 9, sync 10, oled 11, emc 12, mixer 13.
-  - Index 5 → `0x0802BD10`, whose sub-commands are play/stop/pause/resume (table `0x08073D94`).
-  - Index 8 → `0x0802CA94`, whose argument tables `note/pitch/param/gene/dump` (`0x08073E04`) and `Saw/Sqr/Tri/Sin` (`0x08073E34`) make it the synth test command.
+- The console has one handler object per top-level command, 0x20 bytes each, starting at `0x08073FD0`. Method 0 is the command entry. The name table at `0x08073CD8` lists gpio, codec, cvout, help, flag, **audio**, filter, ioc, **synth**, boot, sync, oled, emc, mixer, but the dispatcher doesn't map names to objects in that order ([the mapping](free-space-and-dead-code.md#making-space-retiring-console-commands)). For `audio` and `synth` the two orders agree:
+  - Object 5 → `0x0802BD10`, whose sub-commands are play/stop/pause/resume (table `0x08073D94`).
+  - Object 8 → `0x0802CA94`, whose argument tables `note/pitch/param/gene/dump` (`0x08073E04`) and `Saw/Sqr/Tri/Sin` (`0x08073E34`) make it the synth test command.
 - The firmware issues only `audio`, `conf`, `filter` and `ioc` commands itself. These are all of the image's strings that start with a command name: `audio play`, `filter mode …`, `ioc sel …` and 96 `conf …` lines.
-- The `synth` handler occupies `0x0802CA94–0x0802CC04` (368 bytes). The function at `0x0802CC04` is a separate helper, tail-called from `0x0802CDBA` in the `sync` handler, and stays untouched.
+- The `synth` handler occupies `0x0802CA94–0x0802CC04` (368 bytes). The function at `0x0802CC04` is a separate helper, tail-called from `0x0802CDBA` in the `ioc` handler, and stays untouched.
 - Raw scan of stock: **the only reference into `0x0802CA94–0x0802CC04` is the word at `0x080740D4`** (that handler object's method 0). This is `test_region_is_reached_only_through_the_patch`.
-- The patch points `0x080740D4` at `0x0802B8ED`, a `bx lr` (`70 47`) that stock already uses as method 0 for `emc` (`0x08074154`). `synth …` on the factory console becomes a no-op, and the region is reachable only through the patch's hooks. The test checks that too, on the patched image.
+- The patch points `0x080740D4` at `0x0802B8ED`, a `bx lr` (`70 47`) that stock already uses as method 0 of its last handler object (`0x08074154`). `synth …` on the factory console becomes a no-op, and the region is reachable only through the patch's hooks. The test checks that too, on the patched image.
 
-#### The Release build's region: `flag`, `help`, `gpio`
+#### The Release build's region: `sync`, `oled`, `boot`
 
 The display hooks outgrew the `synth` region (372 > 368 bytes), so the Release build uses three adjacent handlers instead, and `synth` stays stock. The hardware diagnostics `diag-region`/`diag-hook` still use the `synth` region; it booted on hardware.
 
-- `flag` (index 4, slot `0x08074054` → `0x0802BB61`), `help` (index 3, slot `0x08074034` → `0x0802BC01`), `gpio` (index 0, slot `0x08073FD4` → `0x0802BC85`) are contiguous: `0x0802BB60–0x0802BD10`, 432 bytes, ending where the `audio` handler starts. None is a command the firmware issues itself.
+- `sync` (slot `0x08074054` → `0x0802BB61`), `oled` (slot `0x08074034` → `0x0802BC01`), `boot` (slot `0x08073FD4` → `0x0802BC85`) are contiguous. Earlier versions of this page called them `flag`, `help` and `gpio`, by name-table order; the names above are the dispatcher's. They are contiguous: `0x0802BB60–0x0802BD10`, 432 bytes, ending where the `audio` handler starts. None is a command the firmware issues itself.
 - The code before `0x0802BB60` ends in `pop.w {r3,r4,r5,lr}; b.w 0x0802E8D0` and a `nop` at `0x0802BB5E`, so nothing falls through into the region.
 - Raw scan of stock: the only references into `0x0802BB60–0x0802BD10` are the three slots, plus `0x0802B7B2`, which is the second halfword of the `push.w` at `0x0802B7B0` (it decodes as a literal load). The patch points the three slots at the `bx lr` stub `0x0802B8ED`.
 

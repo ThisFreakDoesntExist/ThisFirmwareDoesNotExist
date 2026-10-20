@@ -37,6 +37,9 @@ So an incoming CC changes the sound (the voices read stored values directly) but
 - **Its id switch exists twice** (verified on hardware): in the dispatcher `FUN_080519EC`, which the tick calls only on its first run, and inlined in the tick (`movw r3,#0x503` at `0x08052BAE`), which runs from then on. A hook on only one copy never fires after boot. The Release patch hooks both.
 - Values are formatted by **`FUN_0804E404(buf, id)`**; unknown ids print as plain numbers.
 - Display names are copied from flash strings at boot, so a rename is a same-length string edit (`"Dec/Rel"` → `"Decay"` at `0x0806298C`).
+- **Requests:** the tick owns the screen through its request struct `0x20000A14`. `FUN_080558C0(0x20000A14, id)` posts "show this param"; the tick draws it once due, arms a timeout (`+0x7C`, 5000 ms for stock popups) and returns to the preset page by itself. `FUN_08055E40` ends the current screen at once (verified under emulation).
+- **Request `0x700` is a full-page "Paraphony ON/OFF" that stock has a case for but never posts** (case at `0x08052EE8`). The [mode notices](voice-modes.md#mode-notices-the-display-managers-unused-request) post it and replace its text. Drawing on the text widget `0x2001DFF4` from outside the tick leaves an overlay that never clears (seen on hardware).
+- **Text goes to the OLED in 4-byte chunks.** A short string sends its spare bytes too, so two strings in a row show junk between them. Build one string and send it once.
 
 ### The envelope curve
 
@@ -68,10 +71,17 @@ So an incoming CC changes the sound (the voices read stored values directly) but
 - The panel path also broadcasts the change, which opens the "Matrix Amount" popup. Broadcasting to light an LED from MIDI therefore brings the popup with it, which stock never shows for an incoming CC.
 - `matrix-cc` (and `release-matrix`) sends the one frame for the cell an incoming CC changed, only when it turns on or off, and nothing to the screen: see [the LED refresh](matrix-cc.md#the-led-refresh). It runs in the main loop just before the matrix tick, so it can't interleave with the controller's own frames. Tested on hardware: [LED refresh on hardware](matrix-cc.md#led-refresh-on-hardware).
 
+## The panel LEDs
+
+- **Grid LEDs** use the same `F7 10 col row l1 l2` frames as the matrix. Column 6 holds the filter type (rows 0–2) and the cycling envelope's Env/Run/Loop (rows 4–6); column 5 the LFO shapes (rows 0–5) and LFO Sync (row 6); column 7 the arp range (rows 0–3) and Tempo / Time Division (row 4). Spots stock never lights have no LED on the synth (verified on hardware).
+- **Button LEDs on direct pins** take a 6-byte event: `F5 00 07 00 00 FF` (or `… 00`) lights (or clears) the Paraphonic LED, button `0x700`. Stock's Unison blink is a 25 ms flash every second, run by the UI tick while byte `+0x39` of the Paraphonic object `0x20003714` is 1.
+- **On/off only.** Every LED is either lit or dark, and the matrix chip applies changes about 10 ms apart (grid LEDs about 5 ms), so a pattern of on and off times is the only way to say more. Delay's dips, Duo's double pulse and cyc-env sync's beat are [examples](voice-modes.md).
+
 ## Writing your own
 
 - To show a new parameter, follow it through all three: the listener (it records any id), **both** copies of the popup switch, and the formatter. The [Release patch](release-patch.md#screen) is the worked example.
 - To light something without a popup, send the frame the owning controller would send, through `FUN_08021414`, from the main loop.
+- To show a short message, post a request the tick owns and draw only inside its case, as the [mode notices](voice-modes.md#mode-notices-the-display-managers-unused-request) do.
 - Anything drawn on the OLED chip itself (curves, layout) needs an OLED-image edit (`"image": "oled"`, see [Writing a patch](writing-a-patch.md#the-spec)).
 
 ## Open questions

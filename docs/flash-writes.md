@@ -71,8 +71,9 @@ The bootloader (`0x08000000–0x0800BFFF`) isn't in the update file and can't be
 | `0x08001F08` (DFU Erase) | Erases sectors 3–7 for a main-image update | verified under emulation |
 | `FUN_08000D08` (DFU Write) | Programs the update into `0x0800C000` onwards, 64 bytes per block | verified under emulation |
 
-Two consequences:
+Three consequences:
 
+- **A main image must be a whole number of words.** Write programs whole 32-bit words and keeps a running XOR of them; the final check compares it with the flash. If the last 64-byte block isn't a multiple of 4 bytes, the bytes past its end come from the USB receive buffer, the check fails, and the image is never marked valid. Longer images boot when padded ([free space](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)). (Verified under emulation and on hardware.)
 - **An interrupted update is recoverable.** The bootloader marks the image "in progress" before erasing and "valid" only at the end, so the synth falls back to update mode. Hold **Shift + Arp + Oct** at power-on and flash the official file ([recovery](update-file-format.md#recovery)).
 - **Don't cut power during an update.** Because `FUN_080013B4` erases sector 2 to change a status word, the calibration block briefly exists only in RAM. Losing power at that moment would probably lose the calibration with it. (Inferred from the code path; not tested, and please don't.)
 

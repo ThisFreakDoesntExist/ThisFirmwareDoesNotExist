@@ -12,10 +12,11 @@ Read them in this order:
 6. [Oscillator engines](oscillator-engines.md): how engines are described and dispatched, and how to replace one.
 7. [The Release patch](release-patch.md): a complete worked example with every address justified.
 8. [The mod matrix over MIDI CC](matrix-cc.md): a second patch, and how two patches combine into one build.
-9. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
-10. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
-11. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
-12. [Related projects](related-projects.md): other open-source MicroFreak work.
+9. [Voice modes](voice-modes.md): Delay, Duo, mode notices and a tempo-synced cycling envelope; how to make a new voice mode, build patches in series, and save space.
+10. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
+11. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
+12. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
+13. [Related projects](related-projects.md): other open-source MicroFreak work.
 
 ## Conventions
 
