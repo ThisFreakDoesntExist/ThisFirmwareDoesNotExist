@@ -1,0 +1,31 @@
+{
+  "name": "cyc-sync",
+  "description": "Tempo-synced cycling envelope: Shift + Mode locks Rise and Fall to the LFO's 13 divisions; the mode LED blinks on the beat.",
+  "source": "cyc_sync.S",
+  "sections": {
+    ".text": {"start": "0x0807FF98", "end": "0x0807FFFF", "was": "past the stock image (appended), the last bytes before the checksum byte"},
+    ".text.b": {"start": "0x0802C2F4", "end": "0x0802C3E2", "was": "console 'gpio' handler, retired by the 0x08073FF4 edit"},
+    ".text.c": {"start": "0x0802D44C", "end": "0x0802D530", "was": "console 'flag' handler, retired by the 0x080740B4 edit"},
+    ".text.d": {"start": "0x0802BD94", "end": "0x0802BE90", "was": "console 'cvout' handler, retired by the 0x08074134 edit"}
+  },
+  "imports": {"post_notice": "0x0807FE00"},
+  "hooks": [
+    {"site": "0x080219D4", "kind": "b.w", "symbol": "ui_event", "was": "push {r4,r5,lr}; mov r4,r1 (UI event entry; ui_event re-runs them)"},
+    {"site": "0x080125A4", "kind": "bl", "symbol": "rise_set", "next": "rise_next", "target": "0x0800DD90", "was": "bl to the Rise setter (cycling env update)"},
+    {"site": "0x08012656", "kind": "bl", "symbol": "decay_set", "next": "decay_next", "target": "0x0800DDA8", "was": "bl to the Decay setter (cycling env update)"},
+    {"site": "0x0801265E", "kind": "bl", "symbol": "fall_set", "next": "fall_next", "target": "0x0800DDC0", "was": "bl to the Fall setter (cycling env update)"},
+    {"site": "0x0801522C", "kind": "bl", "symbol": "rise_set", "next": "rise_next", "target": "0x0800DD90", "was": "bl to the Rise setter (engine-rate set-up)"},
+    {"site": "0x08015284", "kind": "bl", "symbol": "decay_set", "next": "decay_next", "target": "0x0800DDA8", "was": "bl to the Decay setter (engine-rate set-up)"},
+    {"site": "0x08015290", "kind": "b.w", "symbol": "fall_set", "next": "fall_next", "target": "0x0800DDC0", "was": "b.w to the Fall setter (engine-rate set-up, tail call)"},
+    {"site": "0x0803A824", "kind": "bl", "symbol": "sync_tick", "next": "tick_next", "target": "0x08039DA4", "was": "bl to the main-loop poll"},
+    {"site": "0x0804F5AC", "kind": "bl", "symbol": "graph_value", "next": "graph_next", "target": "0x0804ED7C", "was": "bl to the param value getter (cycling-env popup, Rise)"},
+    {"site": "0x0804F5DC", "kind": "bl", "symbol": "graph_value", "next": "graph_next", "target": "0x0804ED7C", "was": "bl to the param value getter (cycling-env popup, Fall)"},
+    {"site": "0x0804F6D4", "kind": "bl", "symbol": "value_text", "next": "text_next", "target": "0x0804E404", "was": "bl to the value-text formatter (cycling-env popup)"}
+  ],
+  "edits": [
+    {"site": "0x08073FF4", "kind": "word", "value": "0x0802B8ED", "was": "0x0802C2F5, console 'gpio' handler -> stock bx lr stub"},
+    {"site": "0x080740B4", "kind": "word", "value": "0x0802B8ED", "was": "0x0802D44D, console 'flag' handler -> stock bx lr stub"},
+    {"site": "0x08074134", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BD95, console 'cvout' handler -> stock bx lr stub"}
+  ],
+  "options": {}
+}

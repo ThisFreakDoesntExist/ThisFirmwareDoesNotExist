@@ -62,7 +62,7 @@ There is **no signature or cryptographic MAC**. MIDI Control Center accepts a mo
 2. Recompute the XOR-8 and write it into header byte 1 and the trailing byte.
 3. Either rewrite the two CRC-32 fields in place (keeps every offset stable) or re-zip with `ZIP_STORED`.
 4. Keep `info.json` and every file name unchanged.
-5. **Keep the main image at exactly its stock length** (see [free space](free-space-and-dead-code.md#constraint-1-the-image-cant-grow)).
+5. **Keep the main image's length a multiple of 16 bytes**, header and checksum byte included, and its payload ending by `0x08080000`. Stock already is; an image that grows must be padded ([why](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)). The other images keep their stock length.
 
 ## Recovery
 

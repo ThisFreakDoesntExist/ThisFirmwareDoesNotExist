@@ -1,0 +1,18 @@
+{
+  "name": "duo",
+  "description": "Duo voice mode: Shift + tap Paraphonic cycles Unison and Duo, two notes on two detuned voices each.",
+  "source": "duo.S",
+  "region": {"start": "0x0802BE90", "end": "0x0802C132", "was": "console 'codec' handler, retired by the 0x08074094 edit"},
+  "imports": {"delay_off": "0x0807FB0A", "led_set": "0x0807FB42"},
+  "hooks": [
+    {"site": "0x080433F0", "kind": "b.w", "symbol": "duo_btn", "next": "btn_next", "target": "0x0803CA5C", "was": "b.w to the Paraphonic handler (Paraphonic press)"},
+    {"site": "0x0803F1E2", "kind": "b.w", "symbol": "duo_btn", "next": "btn_next", "target": "0x0803CA5C", "was": "b.w to the Paraphonic handler (Paraphonic release)"},
+    {"site": "0x0803A824", "kind": "bl", "symbol": "duo_tick", "next": "tick_next", "target": "0x08039DA4", "was": "bl to the main-loop poll"}
+  ],
+  "edits": [
+    {"site": "0x08074094", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BE91, console 'codec' handler -> stock bx lr stub"},
+    {"site": "0x0807624C", "kind": "string", "text": "Spread/Detune", "length": 14, "was": "Utility menu label \"Unison Spread\""},
+    {"site": "0x08008D40", "image": "oled", "kind": "string", "text": "Spread/Detune", "length": 14, "was": "Shift + Paraphonic spread page's title \"Unison Spread\", drawn by the OLED chip (its leading space at 0x08008D3F stays)"}
+  ],
+  "options": {}
+}

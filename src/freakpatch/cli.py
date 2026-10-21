@@ -9,10 +9,12 @@ from pathlib import Path
 from freakpatch import __version__
 from freakpatch.patcher import LATEST_VERSION, Patch, PatchError, apply
 
-PATCHES = ("release", "release-matrix", "matrix-cc", "diag-region", "diag-hook")
+PATCHES = ("release", "release-matrix", "voice-modes", "matrix-cc", "diag-region", "diag-hook")
 """``release`` is the hardware-tested feature, ``release-matrix`` adds the mod matrix over MIDI CC to it, and
 ``matrix-cc`` is that on its own; ``release-matrix`` also patches the OLED chip's image, so the envelope curve
-draws Decay and Release separately. The ``diag-*`` builds check placement on hardware first."""
+draws Decay and Release separately. ``voice-modes`` is ``release-matrix`` plus the Delay and Duo voice modes, their
+notices and the tempo-synced cycling envelope, appended after the stock image. The ``diag-*`` builds check placement
+on hardware first."""
 
 
 def main(argv: list[str] | None = None) -> int:

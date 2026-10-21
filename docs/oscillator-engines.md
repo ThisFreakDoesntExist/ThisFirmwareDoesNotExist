@@ -2,7 +2,7 @@
 
 The MicroFreak's digital oscillator has 22 engines in 5.0.0.2084. Each is a C++ class with a vtable, plus a 28-byte descriptor that gives the screen its name and knob labels. Replacing an engine means putting new render code where an old engine's code was, and re-pointing its vtable, descriptor and config answer. That has been done publicly by [FreakSwap](related-projects.md#freakswap), whose layout is summarised below.
 
-**There's no room to add a 23rd engine** without removing something else: the image can't grow and has no free space ([why](free-space-and-dead-code.md)). Replacement is the practical route.
+**There's no room to add a 23rd engine** without removing something else: the image can grow by only 1,440 bytes and has no free space inside ([why](free-space-and-dead-code.md)). Replacement is the practical route.
 
 ## Engine ids and descriptors
 

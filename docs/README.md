@@ -2,6 +2,8 @@
 
 ThisFirmwareDoesNotExist's map of Arturia's stock MicroFreak firmware **5.0.0.2084** (update file SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`), for people who want to write their own patches.
 
+Working with a coding agent? [AGENTS.md](../AGENTS.md) holds the rules every change keeps and the steps from idea to a tested patch.
+
 Read them in this order:
 
 1. [Update file format](update-file-format.md): what's inside an `.mff`, and how to rebuild a valid one.
@@ -12,10 +14,11 @@ Read them in this order:
 6. [Oscillator engines](oscillator-engines.md): how engines are described and dispatched, and how to replace one.
 7. [The Release patch](release-patch.md): a complete worked example with every address justified.
 8. [The mod matrix over MIDI CC](matrix-cc.md): a second patch, and how two patches combine into one build.
-9. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
-10. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
-11. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
-12. [Related projects](related-projects.md): other open-source MicroFreak work.
+9. [Voice modes](voice-modes.md): Delay, Duo, mode notices and a tempo-synced cycling envelope; how to make a new voice mode, build patches in series, and save space.
+10. [The screen and LEDs](screen-and-leds.md): how the OLED and matrix LEDs are fed, and what both patches change there.
+11. [Spice and Dice](spice-and-dice.md): how the arp and sequencer randomisers work.
+12. [Reverse-engineering setup](reverse-engineering-setup.md): the tools used to produce all of this.
+13. [Related projects](related-projects.md): other open-source MicroFreak work.
 
 ## Conventions
 

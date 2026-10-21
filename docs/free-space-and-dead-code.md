@@ -2,13 +2,23 @@
 
 Two constraints shape every patch to the main image. Both were learned the hard way.
 
-## Constraint 1: the image can't grow
+## Constraint 1: the image grows only in whole words
 
-The main image ends at `0x0807FA60`, and the flash after it looks free (1,440 bytes up to `0x08080000`). **It isn't usable.**
+The stock main payload ends at `0x0807FA5F`, where its checksum byte is flashed. The bootloader erases and accepts up to `0x0807FFFF` (sectors 3–7, 475,136 bytes), so 1,440 bytes after the stock image are usable, as long as the image is padded.
 
-The first version of the Release patch appended its code there. MIDI Control Center accepted the file, and the synth hung at the boot logo. A second test appended the same 457 bytes **with no hooks at all**, so none of it could ever run, and it hung too. Any main image longer than stock fails to boot, whatever it contains. Why is unknown; the bootloader may check the length, or the updater may write a fixed size.
+The history, because it explains the rule:
 
-So everything must fit inside the stock length. `patcher.verify()` refuses to write a longer image.
+- **Two hangs.** The first version of the Release patch appended its code there. MIDI Control Center accepted the file, and the synth hung at the boot logo. A second test appended the same 457 bytes **with no hooks at all** (diag B), so none of it could ever run, and it hung too. For a while that looked like "any image longer than stock fails", and every patch was made to fit inside the stock length.
+- **The cause.** The bootloader receives the image over USB in 64-byte blocks and programs it in whole 32-bit words. At the end it checks a running XOR of what it programmed against what it received. When the last block's length isn't a multiple of 4, the 1–3 bytes past its end come from whatever the USB receive buffer held, the check fails, and the bootloader never marks the image valid. The synth stays in update mode, which looks like a hang at the logo. Both failing images ended on a 41-byte block. (Read from a unit's bootloader and run under emulation; see [flash writes](flash-writes.md#the-bootloader). No bootloader bytes are published.)
+- **The fix, on hardware.** The same 457 bytes padded to a whole number of words (diag C) booted (2026-10-15). The stock image is a multiple of 16 bytes too, header and checksum byte included.
+
+So `patcher.apply()` pads an image with appended code until header, payload and checksum byte are a multiple of 16 bytes, and refuses one that passes `0x08080000`. The rules for appended parts:
+
+- Appended code starts at `0x0807FA60` (`APPEND_BASE`, the first 16-byte boundary after stock) or later. The one byte in front of it is zero; any other gap, and the padding, is `0xFF` (erased flash).
+- A part whose `region` starts at or above `APPEND_BASE` is appended, and its region may end at `0x0807FFFF` at most: the last byte goes to the checksum.
+- `verify()` checks that the image grew by exactly the appended code, fill and padding, and that nothing else changed.
+
+The `voice-modes` build appends three parts (the delay voice, the mode notices and part of cyc-env sync) and was tested on hardware; see [voice modes](voice-modes.md#layout) for how the 1,440 bytes are used. Little of it is left, so the next sections still matter.
 
 ## Constraint 2: there is no free space inside it
 
@@ -24,11 +34,13 @@ So everything must fit inside the stock length. `patcher.verify()` refuses to wr
 
 Also, 184 functions have no direct callers simply because they're reached through vtables or pointer tables. The oscillator engines' render functions are an example.
 
+A scan that counts every reference form also found almost nothing beyond the console handlers below: one 178-byte function, `FUN_0802EE74`, reached only from the `oled` console handler that Release retires (so it's free in any build with Release), and a few scraps of 1–12 bytes. Without `cbz`/`cbnz` and `tbb`/`tbh` decoding, three live UI handlers and a switch case looked dead, so decode both if you write your own scan.
+
 ## Proving code is unreachable: `tests/refscan.py`
 
 `references(payload, base, lo, hi)` lists every way the image could reach `[lo, hi)` from outside it. It decodes **every halfword offset** as every Thumb form that carries a target (`bl`/`b.w`, `b<c>.w`, `b`, `b<c>`, `cbz`/`cbnz`, literal `ldr`/`ldrb`/`ldrh`/`ldrd`/`vldr`, `adr`), and **every halfword-aligned word** as a pointer.
 
-Decoding data as code can only add false hits, never hide a real one. So **an empty result is a proof** that nothing in the image refers into the range. Hits must then be explained one by one; the usual false hit is the second halfword of a `push.w` (`2D E9 xx xx`) or `ldr.w` that happens to decode as a literal load.
+Decoding data as code can only add false hits, never hide a real one. So **an empty result is a proof** that nothing in the image refers into the range. Hits must then be explained one by one; the usual false hit is the second halfword of a `push.w` (`2D E9 xx xx`) or `ldr.w` (`DF F8 xx xx`) that happens to decode as a literal load or `adr`.
 
 Two limits to keep in mind:
 
@@ -37,28 +49,32 @@ Two limits to keep in mind:
 
 ## Making space: retiring console commands
 
-The factory test console (see [main image](main-image.md#factory-test-console)) has one handler object per top-level command, `0x20` bytes each from `0x08073FD0`, with the command entry at word `+0x04`. **The firmware itself issues only `audio`, `conf`, `filter` and `ioc` commands.** The others exist for factory test.
+The factory test console (see [main image](main-image.md#factory-test-console)) has one handler object per top-level command, `0x20` bytes each from `0x08073FD0`, with the command entry at word `+0x04` (the slot). **The firmware itself issues only `audio`, `conf`, `filter` and `ioc` commands**, at every boot. The others exist for factory test.
 
-To retire a command, point its entry word at a stub that does nothing. Stock already has one: `0x0802B8ED`, a `bx lr` that the `emc` command uses as its entry. After that edit, the raw scan shows the handler's code can be reached only through the patch's own hooks, so the space is free for new code. The command just becomes a no-op on the factory console.
+To retire a command, point its slot at a stub that does nothing. Stock already has one: `0x0802B8ED`, a `bx lr` that the last handler object (slot `0x08074154`) uses as its entry. After that edit, the raw scan shows the handler's code can be reached only through the patch's own hooks, so the space is free for new code. The command just becomes a no-op on the factory console.
 
-Every top-level handler, with a raw scan of the span from its entry to the next known function. "Clean" means the only reference into the span is the command's own table slot, once scanner noise is explained.
+**The slots aren't in name-table order.** The dispatcher (`0x0802CF6C`) maps each name to its handler object separately. The table below follows the dispatcher, traced under emulation. Earlier versions of this page named the slots by name-table position, which put six names on the wrong handlers and listed `filter` as free.
 
-| Command | Slot | Span | Bytes | Raw scan | Status |
+| Command | Slot | Handler span | Bytes | Raw scan of stock | Status |
 |---|---|---|---|---|---|
-| gpio | `0x08073FD4` | `0x0802BC84–0x0802BD10` | 140 | slot only | **used by the Release patch** |
-| help | `0x08074034` | `0x0802BC00–0x0802BC84` | 132 | slot only | **used by the Release patch** |
-| flag | `0x08074054` | `0x0802BB60–0x0802BC00` | 160 | slot + `push.w` noise at `0x0802B7B2` | **used by the Release patch** |
-| synth | `0x080740D4` | `0x0802CA94–0x0802CC04` | 368 | slot only | **free**; proven on hardware by the `diag-*` builds |
-| oled | `0x08074134` | `0x0802BD94–0x0802BE90` | 252 | slot only (plus `ldr.w` noise into `filter`) | **free**; raw-scan clean, not yet flashed |
-| boot | `0x080740F4` | `0x0802C140–0x0802C2F4` | 436 | slot + `push.w` noise at `0x0802BD96`, `0x0802BE92` | **free**; raw-scan clean, not yet flashed |
-| codec | `0x08073FF4` | `0x0802C2F4–0x0802CA94` | 1,952 | many `bl` from all over the image | **not free as a span**: it contains shared functions. The handler itself is smaller; find its real end before using any of it. |
-| sync | `0x08074114` | `0x0802CD14–0x0802D44C` | 1,848 | many `bl` | **not free as a span** (shared functions; also tail-calls `0x0802CC04`) |
-| cvout | `0x08074014` | `0x0802B8E8` | 4 | slot only | a stub already, nothing to gain |
-| emc | `0x08074154` | `0x0802B8EC` | 2 | — | the shared `bx lr` stub itself: **don't touch** |
-| audio, filter, ioc | | | | | **issued by the firmware itself: keep** |
-| mixer | — | — | — | — | in the name table but has no handler object |
+| sync | `0x08074054` | `0x0802BB60–0x0802BC00` | 160 | slot + `push.w` noise at `0x0802B7B2` | **used by Release** |
+| oled | `0x08074034` | `0x0802BC00–0x0802BC84` | 132 | slot only | **used by Release** |
+| boot | `0x08073FD4` | `0x0802BC84–0x0802BD10` | 140 | slot only | **used by Release** |
+| synth | `0x080740D4` | `0x0802CA94–0x0802CC04` | 368 | slot only | **used by matrix-cc**; proven on hardware by the `diag-*` builds |
+| codec | `0x08074094` | `0x0802BE90–0x0802C132` | 674 | slot + `ldr.w` noise at `0x0802BE40` (inside `cvout`) | **used by voice-modes** (Duo) |
+| cvout | `0x08074134` | `0x0802BD94–0x0802BE90` | 252 | slot only | **used by voice-modes** (cyc-env) |
+| gpio | `0x08073FF4` | `0x0802C2F4–0x0802C3E2` | 238 | slot + `ldr.w` noise at `0x0802C154` (inside `filter`) | **used by voice-modes** (cyc-env). The handler's first 238 bytes; the span after it holds shared functions. |
+| flag | `0x080740B4` | `0x0802D44C–0x0802D530` | 228 | slot only | **used by voice-modes** (cyc-env); ends where the panel-link handler starts |
+| audio | `0x08074074` | `0x0802BD10–0x0802BD94` | 132 | | **issued at boot: keep** |
+| filter | `0x080740F4` | `0x0802C140–0x0802C2F4` | 436 | | **issued at boot: keep** |
+| ioc | `0x08074114` | `0x0802CD14–0x0802D44C` | | | **issued at boot: keep** |
+| — | `0x08074014` | `0x0802B8E8` | 4 | slot only | a stub no name reaches; nothing to gain |
+| — | `0x08074154` | `0x0802B8EC` | 2 | | the shared `bx lr` stub itself, which no name reaches: **don't touch** |
+| help, emc, mixer | — | — | — | | reach no handler |
 
-So, beyond the Release patch's 432 bytes (412 used), about **1,056 more bytes** are available in three separate regions: `synth` (368), `boot` (436) and `oled` (252). They aren't contiguous. The current patch format takes one code region per patch; using several means either extending `Patch` to accept a list of regions, or splitting a patch into pieces that branch to each other.
+`tests/test_voice_modes.py` checks the four handlers voice-modes uses: on stock, each is reached only through its slot and the noise listed.
+
+With Release, matrix-cc and voice-modes, every retirable handler is in use. A new feature needs space from a smaller patch, `FUN_0802EE74`, or a feature you leave out; [voice modes](voice-modes.md#space) lists what a size pass found.
 
 Before using any region:
 
@@ -74,5 +90,6 @@ SRAM is just as full. Places found so far:
 - **Padding inside the parameter object.** Value pool A at `obj+0x1158` is zeroed as `0x84` bytes, and its last two bytes (`obj+0x11DA`, `0x2001DA72`) aren't used by any group. The Release patch stores its value there, and because the firmware copies the whole pool into every voice, the value reaches the voices for free.
 - **Unused per-group table slots.** The parameter object sizes its tables for 24 groups and stock registers 20, so the slots for groups 21–23 (`obj+0x140…0x14B`, CC-table pointers) are zero and never read while fewer than 22 groups exist. Each new group consumes one slot, so plan accordingly.
 - **The engine work buffer.** A replacement oscillator engine can use the host engine's 16 KB arena (see [oscillator engines](oscillator-engines.md)).
+- **Between the heap and the stack.** `.bss` ends at `0x2001F230`, where the heap starts; after boot it holds one 88-byte block. The stack grows down from `0x20020000` and was never seen below `0x2001FAE0` in emulation. Voice-modes keeps its state in `0x2001F300–0x2001F4DF` ([voice modes](voice-modes.md#ram)). USB interrupts weren't emulated, so leave a wide margin above the deepest stack seen.
 
 Prove a RAM location unused the same way: raw-scan for literals and immediate offsets that could reach it, and watch it under emulation.

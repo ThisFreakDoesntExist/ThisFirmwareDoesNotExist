@@ -22,7 +22,7 @@ Arturia's `nanowave_main__fw5_0_0_2084__2023_05_30.bin`: 473,696 bytes of Thumb-
 |---|---|---|
 | Bootloader | `0x08000000–0x0800BFFF` | Not in the update file. Sector 2 (`0x08008000`) holds the per-unit calibration block: never write it ([flash writes](flash-writes.md#the-calibration-block-0x08008000)) |
 | Main firmware | `0x0800C000–0x0807FA5F` | Code and data. The trailing checksum byte is at `0x0807FA5F`. |
-| Flash after the image | `0x0807FA60–0x0807FFFF` | 1,440 bytes, but **not usable**: a longer image hangs at boot ([why](free-space-and-dead-code.md#constraint-1-the-image-cant-grow)) |
+| Flash after the image | `0x0807FA60–0x0807FFFF` | 1,440 bytes, usable by appended code if the image is padded to whole words ([why](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)); `voice-modes` uses most of it |
 | `.data` | flash `0x0807F75C`, `0x2F4` bytes → RAM `0x20000000` | copied by the reset handler `0x0805F848` |
 | `.bss` | `0x200002F8–0x2001F230` | zeroed by the reset handler |
 | Stack | `0x2001F230–0x20020000` | |
@@ -137,8 +137,8 @@ The full map, with what each patch changes, is in [The screen and LEDs](screen-a
 
 A command shell used for factory test and calibration. It's a large source of reclaimable code; see [free space and dead code](free-space-and-dead-code.md#making-space-retiring-console-commands).
 
-- **Top-level commands** are numbered by the name table at `0x08073CD8`: gpio 0, codec 1, cvout 2, help 3, flag 4, audio 5, filter 6, ioc 7, synth 8, boot 9, sync 10, oled 11, emc 12, mixer 13.
-- **Handler objects:** 13 objects of `0x20` bytes from `0x08073FD0` (indices 0–12; `mixer` has none). Word `+0x04` of each object is method 0, the command entry.
+- **Top-level commands** are named by the table at `0x08073CD8`: gpio, codec, cvout, help, flag, audio, filter, ioc, synth, boot, sync, oled, emc, mixer.
+- **Handler objects:** 13 objects of `0x20` bytes from `0x08073FD0`. Word `+0x04` of each object is method 0, the command entry. The dispatcher `0x0802CF6C` maps names to objects in its own order, not the name table's; `help`, `emc` and `mixer` reach none. The mapping is in [free space and dead code](free-space-and-dead-code.md#making-space-retiring-console-commands).
 - **Sub-command and argument strings** (near `0x08074900–0x08074BF0` and in tables such as `0x08073D94` play/stop/pause/resume, `0x08073E04` note/pitch/param/gene/dump, `0x08073E34` Saw/Sqr/Tri/Sin, `0x08073F7C` pitch/cutoff/press/reso/vca, `0x08073FAC` mv/raw/cal) cover audio, filter calibration, codec routing, panel tests (`led`, `pot`, `btn`, `enc`), flash tests and logging. The calibration commands write internal flash ([flash writes](flash-writes.md#writers-in-the-main-image)).
 - **The firmware issues only `audio`, `conf`, `filter` and `ioc` commands itself:** these are all of the image's strings that start with a command name (`audio play` at `0x08073CB0`, `filter mode …`, `ioc sel …`, and the 96 `conf …` lines).
 
