@@ -4,7 +4,8 @@
 @ Mode still cycles Env -> Run -> Loop. While synced, Rise and Fall lock to the LFO's 13 divisions (8/1 .. 1/32, its
 @ label table 0x08062378), spread over each knob as the firmware spreads a 13-step param (FUN_0800E644: index =
 @ min(v * 13 >> 15, 12)), longest at the top like stock's Rise/Fall; and the selected mode's LED blinks, lit for the
-@ first half of each beat of the tempo clock. Sync is global, not saved, off at power-on.
+@ first half of each beat of the tempo clock. Sync is global, not saved, off at power-on. Each toggle shows
+@ "Cyc-Env Sync ON/OFF" through the voice-mode displays (mode_display.S), which the base must carry.
 @
 @ How: the cycling envelope (object 0x2001AFDC, envelope 0x2001B138) turns Rise/Fall into per-block phase rates with
 @ three setters, rate = K / (v^3 / 2^30 + 1), K = 2^40 / (20 * blocks per second) at env + 0x40: 0x0800DD90 rise
@@ -60,6 +61,7 @@
         .equ VALUE_TEXT,     1               @ synced Rise/Fall popup value: 1 the division ("1/8T"), 0 stock's time
         .equ LFO_LABELS,     0x08062378      @ the LFO's division names, 8/1 first
         .equ GET_VALUE,      0x0804ED7D      @ FUN_0804ED7C(id) -> u16 param value
+        .equ POST_NOTICE,    0x0807FE00      @ mode_display.S: post_notice(r2 = notice)
         .equ RISE_ID,        0x201
         .equ FALL_ID,        0x203
 
@@ -88,12 +90,7 @@ ui_event:
         ldr     r2, =SHIFT              @ press
         ldrb    r2, [r2]
         cbz     r2, ui_stock
-        ldrb    r2, [r3, #S_SYNC]
-        eor     r2, r2, #1
-        strb    r2, [r3, #S_SYNC]
-        movs    r2, #1
-        strb    r2, [r3, #S_EAT]
-        bx      lr
+        b.w     toggle
 2:      ldrb    r2, [r3, #S_EAT]        @ release
         cbz     r2, ui_stock
         movs    r2, #0
@@ -279,6 +276,19 @@ q24:    .hword  3, 4, 6, 8, 12, 16, 24, 32, 48, 96, 192, 384, 768
         .balign 4
 graph_next:  .word 0
 text_next:   .word 0
+
+@ Shift + Mode press (r3 = STATE): flip sync, swallow the release, show "Cyc-Env Sync ON/OFF" through the displays'
+@ post_notice (mode_display.S: name N_CYC = 4, N_ON = 8).
+        .thumb_func
+toggle:
+        ldrb    r2, [r3, #S_SYNC]
+        eor     r2, r2, #1
+        strb    r2, [r3, #S_SYNC]
+        movs    r1, #1
+        strb    r1, [r3, #S_EAT]
+        lsls    r2, r2, #3
+        adds    r2, #4
+        jump    POST_NOTICE
 
 @ synced_step: r0 = v -> synced: r3 != 0 and r0 = v's step; not synced: r3 = 0, r0 unchanged.
 @ step_of: r0 = v (0 .. 32767) -> r0 = its step, min(v * 13 >> 15, 12). Both clobber r1.

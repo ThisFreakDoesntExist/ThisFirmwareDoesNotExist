@@ -6,10 +6,10 @@
 |---|---|---|
 | Delay | `patches/delay_voice.S` | Hold Paraphonic and each note echoes three times on other voices, quieter each time |
 | Duo | `patches/duo.S` | Shift + Paraphonic from Unison: two notes, each on a detuned pair of voices |
-| Mode notices | `patches/mode_display.S` | A 3 s page naming the mode a Paraphonic gesture turned on or off |
+| Mode notices | `patches/mode_display.S` | A 3 s page naming the mode a Paraphonic gesture or Shift + Mode turned on or off |
 | Cycling-envelope sync | `patches/cyc_sync.S` | Shift + Mode locks Rise and Fall to the tempo, in the LFO's divisions |
 
-The build (SHA-256 `dca1a91348b24165426e8f4088aec6292bd607dc6231c384c9d25df81afa26a5`) was flashed and tested on hardware on 2026-10-17. It's the first build that grows the main image past its stock length, which the bootloader accepts once the image is padded ([why](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)).
+The build is v4 (SHA-256 `55e89bb8fdebeec6f39ea5131f6e36e786ef71ab347d2489afa182cb70ff24b6`, 2026-10-20): v3 (`dca1a913…`), which was flashed and tested on hardware on 2026-10-17, plus the spread page's title and the Cyc-Env Sync notice. v4 is verified in emulation; see [hardware](#hardware). Voice-modes is the first build that grows the main image past its stock length, which the bootloader accepts once the image is padded ([why](free-space-and-dead-code.md#constraint-1-the-image-grows-only-in-whole-words)).
 
 This page describes what each part does and how it's built, as a starting point for your own voice modes. Addresses follow the [conventions](README.md#conventions).
 
@@ -30,15 +30,17 @@ A note echo in the style of the Minilogue's Delay voice mode. It isn't an audio 
 - **Sound:** two notes on 2 + 2 voices, each pair detuned by Unison Spread on stock's own curve (0.123 semitone at the Init value, 0.5 at 8192, 1.0 at 16384).
 - **Detune editor:** Shift + hold Paraphonic + the Preset encoder is stock's spread editor. In Duo it edits Duo's detune and stays in Duo.
 - **LED:** the Paraphonic LED double-pulses (60 ms on, 120 off, 60 on, 760 off) instead of Unison's short blip.
-- **Menu:** the Utility menu entry "Unison Spread" reads "Spread/Detune". The spread page's title is drawn by the OLED chip from its own copy of the string, so it still reads "Unison Spread".
+- **Labels:** "Unison Spread" reads "Spread/Detune" in both places it appears: the Utility menu entry, and the title of the Shift + Paraphonic spread page. The page title is drawn by the OLED chip from its own copy of the string, so that rename is an edit to the OLED chip's image (same length, fresh checksum).
 
 ### Mode notices
 
 When a Paraphonic gesture changes the voice mode, the screen shows a full page for 3 s, then goes back to the preset page: "Paraphony ON/OFF", "Unison ON/OFF", "Duo ON/OFF", "Delay ON/OFF". The notice names what changed, in this order of priority: Delay, Duo, Unison, Paraphony. So Duo → Unison reads "Unison ON". A tap that doesn't change the mode shows nothing.
 
+Shift + Mode shows "Cyc-Env Sync ON" or "Cyc-Env Sync OFF" for 3 s, styled like stock's LFO Sync page: two lines, no keyboard icon.
+
 ### Cycling-envelope sync
 
-- **Toggle:** Shift + Mode. Sync is global, off at power-on, and not saved in presets. Plain Mode still cycles Env → Run → Loop.
+- **Toggle:** Shift + Mode, with a "Cyc-Env Sync ON/OFF" notice. Sync is global, off at power-on, and not saved in presets. Plain Mode still cycles Env → Run → Loop.
 - **While synced:** Rise and Fall each pick one of the LFO's 13 divisions (8/1 … 1/32), spread over the knob the way the firmware spreads any 13-step parameter, with the longest at the top as stock's Rise and Fall are. The selected mode's LED blinks, lit for the first half of each beat.
 - **Popup:** turning Rise or Fall shows the division ("Rise Time 1/4"), and the curve snaps to the centre of the division's step. Unsynced, the popup is stock's.
 - **Tempo:** changing the tempo re-times the envelope. Only the durations are synced. The loop isn't phase-locked to the beat, and Hold's one audio block (0.33 ms) makes a Loop cycle that much longer.
@@ -53,13 +55,13 @@ All addresses are fixed when the patch is built, so the parts combine without mo
 | matrix-cc | `0x0802CA94` (console `synth`) | 324 / 368 | 44 |
 | delay-voice | `0x0807FA60`, appended | 916 / 928 | 12 |
 | duo | `0x0802BE90` (console `codec`) | 604 / 674 | 70 |
-| mode-display | `0x0807FE00`, appended | 252 / 408 | 156 |
-| cyc-sync `.text` | `0x0807FF98`, appended | 80 / 103 | 23 (`0x0807FFE8`–`0x0807FFFE`) |
+| mode-display | `0x0807FE00`, appended | 288 / 408 | 120 (`0x0807FF20`–`0x0807FF97`) |
+| cyc-sync `.text` | `0x0807FF98`, appended | 72 / 103 | 31 (`0x0807FFE0`–`0x0807FFFE`) |
 | cyc-sync `.text.b` | `0x0802C2F4` (console `gpio`) | 196 / 238 | 42 |
 | cyc-sync `.text.c` | `0x0802D44C` (console `flag`) | 176 / 228 | 52 |
-| cyc-sync `.text.d` | `0x0802BD94` (console `cvout`) | 136 / 252 | 116 |
+| cyc-sync `.text.d` | `0x0802BD94` (console `cvout`) | 156 / 252 | 96 |
 
-The voice-mode parts total 2,360 B: the delay's 916 and 1,444 for the other three. The update payload is 475,120 B (main payload 475,119 plus its checksum byte), 16 B under the bootloader's limit of 475,136.
+The voice-mode parts total 2,408 B: the delay's 916 and 1,492 for the other three (1,444 in v3; the Cyc-Env Sync notice added 48 B). The update payload is 475,120 B (main payload 475,119 plus its checksum byte), 16 B under the bootloader's limit of 475,136.
 
 ### RAM
 
@@ -89,11 +91,11 @@ Each part's other hooks are its own:
 | Part | Hooks | Edits |
 |---|---|---|
 | Delay | `bl echo_on` / `echo_off` at the paraphonic note-on and note-off calls of the voice allocator (`0x0804866E`, `0x080493CC`); `bl voice_level` at the 9 envelope-level reads in the voice mix (`0x0803751C`, `0x0803755A`, `0x0803763C`, `0x0803767C`, `0x08037AEA`, `0x08037AF8`, `0x08037B3E`, `0x08037B4A`, `0x08037B6E`) | |
-| Duo | | `codec` vtable word `0x08074094` → stock's `bx lr`; the menu string at `0x0807624C` |
+| Duo | | `codec` vtable word `0x08074094` → stock's `bx lr`; the menu string at `0x0807624C`; the spread page's title at `0x08008D40` in the OLED image |
 | Notices | `b.w popup_text` over the `bne.w` at `0x08052F1C`, in the display manager's case for request `0x700`; a `word` hook fills Duo's `notice_fn` (`0x0802BE98`) with `notice` | |
 | Cyc-env sync | `b.w ui_event` at the UI event entry `0x080219D4` (it replays the two instructions it covers); chained `bl` at each call of the cycling envelope's Rise, Decay and Fall setters (`0x080125A4`, `0x08012656`, `0x0801265E`, `0x0801522C`, `0x08015284`, and the tail call `b.w` at `0x08015290`); chained `bl` at the popup's two value reads (`0x0804F5AC`, `0x0804F5DC`) and its value text (`0x0804F6D4`) | vtable words `0x08073FF4`, `0x080740B4`, `0x08074134` → stock's `bx lr` |
 
-Duo also calls two of the delay's routines by address, `delay_off` (`0x0807FB0A`) and `led_set` (`0x0807FB42`). Its spec lists them under `imports`, and the build checks that the delay put them there.
+Duo also calls two of the delay's routines by address, `delay_off` (`0x0807FB0A`) and `led_set` (`0x0807FB42`). Its spec lists them under `imports`, and the build checks that the delay put them there. Cyc-env likewise jumps to the displays' `post_notice` at `0x0807FE00`, the first routine in their region, so it needs the displays in the build.
 
 ## How each part works
 
@@ -121,8 +123,9 @@ Duo adds no voice or pitch code. It puts stock's machinery into a combination st
 
 - **Request `0x700`:** the display manager (object `0x20000A10`, request struct `0x20000A14`) has a case for "show param `0x700`" that draws a full Paraphony page, but stock never posts it. `notice` posts it with `FUN_080558C0(0x20000A14, 0x700)`, and `popup_text` replaces the case's text with the notice. The manager then draws the page, times it out (the patch sets 3000 ms; stock popups use 5000) and returns to the preset page by itself.
 - **Draw only inside the manager's case.** Drawing on the text widget from anywhere else leaves an overlay the manager never clears. That was the delay's stuck popup on hardware.
-- **One string per notice.** Each text call to the OLED carries 4 bytes, so sending "Delay\n" and "ON" separately showed junk between them. The notice is built in a 16-byte stack buffer: the patch's own name, then stock's "ON" / "OFF" (the tails of its Paraphony strings at `0x08075710` and `0x08075720`).
+- **One string per notice.** Each text call to the OLED carries 4 bytes, so sending "Delay\n" and "ON" separately showed junk between them. The notice is built in a 24-byte stack buffer: the patch's own name, then stock's "ON" / "OFF" (the tails of its Paraphony strings at `0x08075710` and `0x08075720`).
 - **Who decides:** Duo's wrapper is the only Paraphonic wrapper. It takes a mode key at the press and again after the release (Paraphony, Unison, Delay, Duo) and calls `notice(new key, changed bits)` through `notice_fn` when they differ. A build without the notices leaves `notice_fn` at 0.
+- **Other callers:** `notice` ends in `post_notice(r2 = notice)`, which stores the notice byte (a 3-bit name, bit 3 = ON) and posts `0x700`. It sits first in the region at a fixed address, so cyc-env's Shift + Mode can call it with name 4, "Cyc-Env Sync". For that name `popup_text` ends the case where stock's LFO Sync case ends (`0x08052C2E`), with no keyboard icon; the voice-mode notices rejoin `0x08052F6E`, which draws it.
 
 ### Cycling-envelope sync: wrap the rate setters, not the params
 
@@ -182,7 +185,7 @@ The voice modes fill the flash after the stock image and four console handlers, 
 | One grid-LED frame helper shared by matrix-cc and cyc-env | 15–20 B |
 | Direct calls in Release, Matrix CC and Delay, as done for the others (Release alone has 9 `ldr pc` jumps) | about 100 B |
 
-**Layout:** moving cyc-env's `.text` from `0x0807FF98` down to `0x0807FF00` would join the tail's two free gaps into about 176 B at the end and shorten the update file. It would change the file's hash, so it waits for the next hardware round.
+**Layout:** moving cyc-env's `.text` from `0x0807FF98` down to `0x0807FF20`, right after the displays, would join the tail's two free gaps into about 150 B at the end and shorten the update file. It would change the file's hash, so it waits for the next hardware round.
 
 **Tips:**
 
@@ -195,20 +198,20 @@ The voice modes fill the flash after the stock image and four console handlers, 
 ## Hardware
 
 - **Delay**, first flash (2026-10-15, over `release-matrix` 0.2.0): worked, with the stuck popup and the stuck notes after a fast sweep described above. Both were fixed before the voice-modes build.
-- **Voice modes**, `dca1a913…` (2026-10-17): flashed and tested. The run before it showed "Paraphony OFF" when a plain tap left Unison or Duo, which is why the notices now name what changed.
+- **Voice modes v3**, `dca1a913…` (2026-10-17): flashed and tested. The run before it showed "Paraphony OFF" when a plain tap left Unison or Duo, which is why the notices now name what changed.
+- **Voice modes v4**, `55e89bb8…` (2026-10-20): verified in emulation only. It adds an OLED image edit (OLED edits already work on hardware in `release-matrix`) and the Cyc-Env Sync notice. Check both after flashing.
 
 Test plan for a build that changes any of this (Init preset):
 
 1. **Base unchanged:** a tap gives Paraphony with a solid LED. Release, the Decay/Release curve and the matrix LEDs work as in `release-matrix`.
 2. **Delay:** a 1 s hold gives "Delay ON" and the dipping LED; a staccato note gives 3 quieter repeats. Sweep the keyboard fast, up and down: nothing keeps sounding.
-3. **Notices:** each gesture shows its page for about 3 s, then the preset page. Nothing stays on screen. Other popups (knobs, LFO Sync) still last 5 s.
-4. **Duo:** Shift + tap twice gives "Duo ON" and the double pulse; C4 + E4 give two beating pairs. Shift + hold + Preset changes the detune and stays in Duo. A plain tap gives Mono; a hold gives Delay.
+3. **Notices:** each gesture shows its page for about 3 s, then the preset page; Shift + Mode shows "Cyc-Env Sync ON/OFF" with no keyboard icon. Nothing stays on screen. Other popups (knobs, LFO Sync) still last 5 s.
+4. **Duo:** Shift + tap twice gives "Duo ON" and the double pulse; C4 + E4 give two beating pairs. Shift + hold + Preset shows "Spread/Detune" as the page title, changes the detune and stays in Duo. A plain tap gives Mono; a hold gives Delay.
 5. **Cyc-env sync:** Loop, Env → Cutoff, Shift + Mode. The Loop LED blinks on the beat, Rise and Fall jump between note lengths, and the loop follows the tempo. Shift + Mode again: solid LED, stock times.
 6. **Stress:** switch presets while in Duo and while synced; leave the arp running for a few minutes.
 
 ## Known limitations and open questions
 
 - **Delay:** a repeated note's echo retriggers the voice its previous echo is on, cutting that tail, because the allocator gives a note back the slot that last held it. Division (dotted 1/8), repeats (3) and fall-off are constants. Delay can't echo Chord, Unison or Duo notes, which go through other allocator calls.
-- **Duo:** survives a preset change to another Unison preset; isn't saved. The spread page's title still reads "Unison Spread" (it would need an OLED image edit).
+- **Duo:** survives a preset change to another Unison preset; isn't saved.
 - **Cyc-env sync:** Hold isn't synced; the loop isn't phase-locked to the beat; following an external MIDI clock is untested (it reads the internal tempo word).
-- **Notices:** no notice for toggling cyc-env sync.

@@ -11,7 +11,8 @@
   ],
   "edits": [
     {"site": "0x08074094", "kind": "word", "value": "0x0802B8ED", "was": "0x0802BE91, console 'codec' handler -> stock bx lr stub"},
-    {"site": "0x0807624C", "kind": "string", "text": "Spread/Detune", "length": 14, "was": "Utility menu label \"Unison Spread\""}
+    {"site": "0x0807624C", "kind": "string", "text": "Spread/Detune", "length": 14, "was": "Utility menu label \"Unison Spread\""},
+    {"site": "0x08008D40", "image": "oled", "kind": "string", "text": "Spread/Detune", "length": 14, "was": "Shift + Paraphonic spread page's title \"Unison Spread\", drawn by the OLED chip (its leading space at 0x08008D3F stays)"}
   ],
   "options": {}
 }

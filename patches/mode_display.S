@@ -1,6 +1,6 @@
 @ Voice-mode displays: a timed notice ("Paraphony / Unison / Delay / Duo" + "ON/OFF") when the Paraphonic button
-@ changes the voice mode. Part of the voice-modes build (docs/voice-modes.md, mode-display.hooks.json), over the delay
-@ voice and Duo.
+@ changes the voice mode, and "Cyc-Env Sync ON/OFF" for cyc_sync.S. Part of the voice-modes build (docs/voice-modes.md,
+@ mode-display.hooks.json), over the delay voice and Duo.
 @
 @ The notice goes through stock's display manager: the Paraphonic release posts request 0x700 ("show param 0x700",
 @ a case stock has but never posts) and the manager draws the page, times it out and returns to the preset page. The
@@ -12,7 +12,10 @@
 @              and posts 0x700. (A press-time post would be ended by stock's release, which calls FUN_08055E40 to
 @              close its Shift-held Spread page.) So this patch needs Duo in its base.
 @   popup_text b over the case's `bne.w 0x08053284` at 0x08052F1C (r6 = Paraphony value, r7 = 0): draw the notice's
-@              name and stock's "ON" / "OFF", set the timeout to NOTICE_MS, rejoin the case's tail at 0x08052F6E.
+@              name and stock's "ON" / "OFF", set the timeout to NOTICE_MS, rejoin the case's tail at 0x08052F6E
+@              (its keyboard icon), or for "Cyc-Env Sync" end the case where LFO Sync's does (no icon).
+@   post_notice(r2 = notice), first in .text so it sits at 0x0807FE00: posts any notice. cyc_sync.S calls it on
+@              Shift + Mode for "Cyc-Env Sync ON/OFF".
 @
 @ Notice = a name and ON/OFF, by what changed: Delay > Duo (Duo -> Unison shows "Unison ON") > Unison > Paraphony.
 @ So leaving Unison or Duo with a plain tap says "Unison OFF" / "Duo OFF" (user, 2026-10-16, after the first
@@ -32,16 +35,18 @@
         .equ TEXT,          0x080557E9      @ (widget, ptr, len): text chunk; (widget, 0, 0x7F) clears
         .equ SEND,          0x0805579D      @ (widget, cmd, arg)
         .equ CASE_TAIL,     0x08052F6F
+        .equ CASE_END,      0x08052C2F      @ where LFO Sync's case ends (after its text, no icon)
         .equ STR_OFF,       0x08075710      @ "Paraphony\nOFF", 14 bytes with the NUL
         .equ STR_ON,        0x08075720      @ "Paraphony\nON", 13
         .equ UNISON,        0x7FFF
         .equ NOTICE_MS,     3000            @ mode-notice timeout (user, 2026-10-16; stock popups: 5000)
-        .equ NOTICE,        0x2001F4C9      @ u8: name (bits 0-1) | N_ON
+        .equ NOTICE,        0x2001F4C9      @ u8: name (bits 0-2) | N_ON
         .equ N_PARA,        0               @ notice names: stock's "Paraphony\n", then ours
         .equ N_UNISON,      1
         .equ N_DELAY,       2
         .equ N_DUO,         3
-        .equ N_ON,          4               @ "ON", else "OFF" (both stock's, the Paraphony strings' tails)
+        .equ N_CYC,         4               @ cyc_sync.S's Shift + Mode
+        .equ N_ON,          8              @ "ON", else "OFF" (both stock's, the Paraphony strings' tails)
 
         .equ K_PARA,        1               @ Duo's mode key: Paraphony != 0, Chord == Unison, Delay, Duo
         .equ K_UNISON,      2
@@ -49,6 +54,16 @@
         .equ K_DUO,         8
 
 @ ---------------------------------------------------------------------------------------------------------------
+@ post_notice(r2 = name | N_ON): show it through the manager's 0x700 case.
+        .global post_notice
+        .thumb_func
+post_notice:
+        ldr     r1, =NOTICE
+        strb    r2, [r1]
+        ldr     r0, =REQ
+        movw    r1, #0x700
+        jump    POST
+
 @ notice(r0 = mode key after the release, r1 = bits the release changed), from Duo's Paraphonic wrapper.
         .global notice
         .thumb_func
@@ -78,24 +93,20 @@ notice:
 4:      tst     r0, r3
         it      ne
         orrne   r2, r2, #N_ON
-        ldr     r1, =NOTICE
-        strb    r2, [r1]
-        ldr     r0, =REQ
-        movw    r1, #0x700
-        jump    POST
+        b       post_notice
 
 @ ---------------------------------------------------------------------------------------------------------------
         .global popup_text
         .thumb_func
 popup_text:
         push    {r4, r5}                @ the manager's object and request struct; r6 is reset by the tail, r7 untouched
-        sub     sp, #16                 @ the notice is built here: each text call carries 4 bytes, so a name and its
+        sub     sp, #24               @ the notice is built here: each text call carries 4 bytes, so a name and its
         ldr     r0, =REQ                @ ON/OFF must go out as one string (two sends put junk between them)
         movw    r1, #NOTICE_MS          @ the manager armed 5000 ms (+0x7C) just before this case
         str     r1, [r0, #0x7C]
         ldr     r1, =NOTICE
         ldrb    r5, [r1]
-        and     r1, r5, #3
+        and     r1, r5, #7
         adr     r0, names
         ldr     r4, [r0, r1, lsl #2]
         adr     r0, name_len
@@ -134,20 +145,28 @@ popup_text:
         movs    r1, #0x12
         ldr     r2, =0x02001A00
         call    SEND
-        add     sp, #16
+        add     sp, #24
         pop     {r4, r5}
-        jump    CASE_TAIL
+        ldr     r0, =NOTICE
+        ldrb    r0, [r0]
+        and     r0, r0, #7
+        cmp     r0, #N_CYC
+        bne     4f
+        jump    CASE_END
+4:      jump    CASE_TAIL
 
         .ltorg
         .balign 4
 names:                                  @ by name index, no NULs
-        .word   STR_OFF, str_unison, str_delay, str_duo
+        .word   STR_OFF, str_unison, str_delay, str_duo, str_cyc
 name_len:
-        .byte   10, 7, 6, 4
+        .byte   10, 7, 6, 4, 13
 str_unison:
         .ascii  "Unison\n"
 str_delay:
         .ascii  "Delay\n"
 str_duo:
         .ascii  "Duo\n"
+str_cyc:
+        .ascii  "Cyc-Env Sync\n"
         .balign 4

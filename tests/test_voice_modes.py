@@ -10,10 +10,13 @@ import pytest
 from refscan import references
 
 from freakpatch import mff, thumb
-from freakpatch.patcher import APPEND_BASE, MAIN_BASE, MAIN_END, Part, Patch, PatchError, apply, grown
+from freakpatch.patcher import APPEND_BASE, MAIN_BASE, MAIN_END, OLED_BASE, Part, Patch, PatchError, apply, grown
 
-VOICE_MODES_SHA256 = "dca1a91348b24165426e8f4088aec6292bd607dc6231c384c9d25df81afa26a5"
-"""The build flashed and tested on hardware (2026-10-17)."""
+VOICE_MODES_SHA256 = "55e89bb8fdebeec6f39ea5131f6e36e786ef71ab347d2489afa182cb70ff24b6"
+"""v4 (2026-10-20): v3 (`dca1a913…`, flashed and tested on hardware 2026-10-17) plus the spread page's OLED title and
+the Cyc-Env Sync notice. Emulator-verified."""
+OLED_TITLE = 0x0800_8D40
+"""The spread page's title in the OLED chip's image."""
 STOCK_END = 0x0807_FA5F
 CONSOLE_NOP = 0x0802_B8ED
 RETIRED = {  # console handler: (region, its vtable word, scanner noise inside other code)
@@ -43,7 +46,7 @@ def _word(payload: bytes, address: int) -> int:
     return struct.unpack_from("<I", payload, address - MAIN_BASE)[0]
 
 
-def test_build_is_the_hardware_tested_file(out: bytes) -> None:
+def test_build_is_the_v4_file(out: bytes) -> None:
     assert hashlib.sha256(out).hexdigest() == VOICE_MODES_SHA256
 
 
@@ -58,14 +61,31 @@ def test_image_grows_only_by_the_appended_code(stock_mff: bytes, out: bytes) -> 
 
 
 def test_everything_release_matrix_changes_is_unchanged(stock_mff: bytes, out: bytes) -> None:
-    """The base features keep their bytes: Release, the matrix CCs and their LED refresh, the curve's OLED edits."""
+    """The base features keep their bytes: Release, the matrix CCs and their LED refresh, the curve's OLED edits. The
+    OLED image differs from the base only by the spread page's title."""
     base_raw = apply(stock_mff, Patch.load("release-matrix"))
     base, new = mff.Update.from_bytes(base_raw), mff.Update.from_bytes(out)
     stock, base_main, new_main = _payload(stock_mff), _payload(base_raw), _payload(out)
     changed = [i for i in range(len(stock)) if base_main[i] != stock[i]]
     assert changed and all(new_main[i] == base_main[i] for i in changed)
     oled = base.image_name(mff.OLED_IMAGE_PREFIX)
-    assert new.read(oled) == base.read(oled)
+    old, now = mff.main_payload(base.read(oled)), mff.main_payload(new.read(oled))
+    assert len(now) == len(old)
+    title = OLED_TITLE - OLED_BASE
+    assert {i for i in range(len(old)) if old[i] != now[i]} <= set(range(title, title + 14))
+    assert old[title - 1 : title + 14] == b" Unison Spread\0"
+    assert now[title - 1 : title + 14] == b" Spread/Detune\0"  # the centring space stays
+
+
+def test_cyc_env_posts_its_notice_through_the_displays(patch: Patch) -> None:
+    """Cyc-env's toggle jumps to the displays' first routine, post_notice, at the address it was built against."""
+    display = next(p for p in patch.parts if p.region[0] == 0x0807_FE00)
+    assert display.code and patch.parts.index(display) == 4
+    cvout = next(p for p in patch.parts if p.region[0] == 0x0802_BD94)  # cyc-env's toggle lives here
+    assert any(
+        thumb.branch_target(cvout.region[0] + i, cvout.code[i : i + 4]) == 0x0807_FE00
+        for i in range(0, len(cvout.code) - 3, 2)
+    )
 
 
 def test_chained_sites_reach_stock_through_every_part(stock_mff: bytes, patch: Patch, out: bytes) -> None:

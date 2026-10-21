@@ -8,6 +8,7 @@
     ".text.c": {"start": "0x0802D44C", "end": "0x0802D530", "was": "console 'flag' handler, retired by the 0x080740B4 edit"},
     ".text.d": {"start": "0x0802BD94", "end": "0x0802BE90", "was": "console 'cvout' handler, retired by the 0x08074134 edit"}
   },
+  "imports": {"post_notice": "0x0807FE00"},
   "hooks": [
     {"site": "0x080219D4", "kind": "b.w", "symbol": "ui_event", "was": "push {r4,r5,lr}; mov r4,r1 (UI event entry; ui_event re-runs them)"},
     {"site": "0x080125A4", "kind": "bl", "symbol": "rise_set", "next": "rise_next", "target": "0x0800DD90", "was": "bl to the Rise setter (cycling env update)"},
