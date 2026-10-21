@@ -2,6 +2,8 @@
 
 ThisFirmwareDoesNotExist's map of Arturia's stock MicroFreak firmware **5.0.0.2084** (update file SHA-256 `c2b405e3c8565b7b73b4dd06522559458190082a8ba633cc5f1bcc43dc64332c`), for people who want to write their own patches.
 
+Working with a coding agent? [AGENTS.md](../AGENTS.md) holds the rules every change keeps and the steps from idea to a tested patch.
+
 Read them in this order:
 
 1. [Update file format](update-file-format.md): what's inside an `.mff`, and how to rebuild a valid one.

@@ -13,6 +13,8 @@ The build is v4 (SHA-256 `55e89bb8fdebeec6f39ea5131f6e36e786ef71ab347d2489afa182
 
 This page describes what each part does and how it's built, as a starting point for your own voice modes. Addresses follow the [conventions](README.md#conventions).
 
+"In emulation" on this page means a full-system MicroFreak emulator (main CPU and I/O chips, audio, screen and LEDs) that isn't part of this repository. This repository's `tests/emu.py` runs single stock functions, which is enough to check a hook's registers or a handler's result. For whole-synth behaviour, use the synth itself, in the [steps](writing-a-patch.md#test-on-hardware-in-steps) that keep a bad flash recoverable.
+
 ## What each part does
 
 ### Delay
@@ -143,7 +145,7 @@ The cycling envelope turns Rise, Decay and Fall into per-block phase rates with 
 
 What these four parts suggest, in the order to try:
 
-1. **Recombine stock's state before writing new code.** Duo is 604 bytes because it writes eight bytes stock already understands. The voice-mode params (`0x700`, `0x707`), the eight mode fields and the Paraphonic object's flags cover Mono, Paraphony, Chord, Unison and anything in between. Probe combinations in emulation and listen before reaching for the allocator or the pitch code.
+1. **Recombine stock's state before writing new code.** Duo is 604 bytes because it writes eight bytes stock already understands. The voice-mode params (`0x700`, `0x707`), the eight mode fields and the Paraphonic object's flags cover Mono, Paraphony, Chord, Unison and anything in between. Try combinations (with `tests/emu.py`, writing the fields and calling the note handler, then on the synth) before reaching for the allocator or the pitch code.
 2. **Feed the allocator rather than the voices.** A new note behaviour (echoes, strums, ratchets, a second note per key) can schedule note-ons into `FUN_0804DA80` from the main-loop poll, as the delay does. The synth's own voice management, envelopes and engines then work unchanged.
 3. **Shape level at the voice mix.** The 9 envelope-level reads in the voice mix are the one place every engine's per-voice level passes through. Velocity won't do it.
 4. **Put the gesture on the Paraphonic button's wrapper.** The press and release sites are already chained, and Duo's wrapper computes the mode key. Add your mode as a new key bit, and the notices can name it with one more string.
