@@ -20,39 +20,39 @@ The descriptor table starts at **`0x080624F4`**, one 28-byte record per Type id,
 | `+0x0C` | char* | Engine name. |
 | `+0x10`, `+0x14`, `+0x18` | 3 × char* | Wave, Timbre and Shape labels. |
 
-The engine directory combines descriptor fields and primary-vtable metadata. `U` is the unresolved descriptor byte `+0x00`, `G` is its signed gain-index offset, and `Wave` is the Wave codec mode; Timbre and Shape use `EE` for every Type. Raw defaults are at descriptor `+0x06..+0x0B`. The config word is hexadecimal, `U` and `G` are decimal, and rates, slots and interval decode the primary `+0x10` result for that Type.
+The directory lists even code entries in the primary vtable; ROM function pointers have bit 0 set. `Wave` is its codec mode; Timbre and Shape use `EE` for every Type. `Config` is the hexadecimal `+0x10` result; mono / paraphonic rates are in kHz. Defaults are raw hexadecimal Wave / Timbre / Shape values from the descriptor, not current preset values.
 
-| Id | Engine | Descriptor | Primary vtable | Render `+24` | Config | Mono / para kHz | Slots | Interval | U | G | Wave | Knob labels |
+| Id | Engine | Descriptor | Vtable | Init `+0C` | Config `+10` | Parameter `+18` | Render `+24` | Config word | Mono / para | Wave | Defaults | Knob labels |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | Idle | `0x080624F4` | `0x08074D5C` | `0x08032054` | `00046060` | 96 / 96 | 4 | 0 | 4 | 0 | `EE` | – / – / – |
-| 1 | BasicWaves | `0x08062510` | `0x08074D5C` | `0x08032054` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `EE` | Morph / Sym / Sub |
-| 2 | SuperWave | `0x0806252C` | `0x08074DEC` | `0x08030124` | `00046060` | 96 / 96 | 4 | 0 | 4 | 12 | `03` | Wave / Detune / Volume |
-| 3 | Wavetable | `0x08062548` | `0x08074E34` | `0x08030990` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `0F` | Table / Position / Chorus |
-| 4 | Harmo | `0x08062564` | `0x08074F54` | `0x08031040` | `00046060` | 96 / 96 | 4 | 0 | 4 | 11 | `EE` | Content / Sculpting / Chorus |
-| 5 | KarplusStr | `0x08062580` | `0x08074F9C` | `0x08031010` | `06046060` | 96 / 96 | 4 | 6 | 4 | 11 | `EE` | Bow / Position / Decay |
-| 6 | V.Analog | `0x0806259C` | `0x08074D14` | `0x0803099C` | `00042030` | 48 / 32 | 4 | 0 | 5 | 10 | `EE` | Detune / Shape / Wave |
-| 7 | Waveshaper | `0x080625B8` | `0x08074D14` | `0x0803099C` | `00043030` | 48 / 48 | 4 | 0 | 5 | 10 | `EE` | Wave / Amount / Asym |
-| 8 | Two Op. FM | `0x080625D4` | `0x08074D14` | `0x0803099C` | `00043030` | 48 / 48 | 4 | 0 | 5 | 10 | `EE` | Ratio / Amount / Feedback |
-| 9 | Formant | `0x080625F0` | `0x08074D14` | `0x0803099C` | `00042030` | 48 / 32 | 4 | 0 | 6 | 12 | `EE` | Interval / Formant / Shape |
-| 10 | Chords | `0x0806260C` | `0x08074D14` | `0x0803099C` | `00042030` | 48 / 32 | 4 | 0 | 6 | 10 | `0A` | Type / Inv/Trsp / Waveform |
-| 11 | Speech | `0x08062628` | `0x08074D14` | `0x0803099C` | `00043030` | 48 / 48 | 4 | 0 | 5 | 10 | `EE` | Type / Timbre / Word |
-| 12 | Modal | `0x08062644` | `0x08074D14` | `0x0803099C` | `00032030` | 48 / 32 | 3 | 0 | 6 | 10 | `EE` | Inharm / Timbre / Decay |
-| 13 | Noise | `0x08062660` | `0x08074FE4` | `0x08030FDC` | `00046060` | 96 / 96 | 4 | 0 | 4 | 11 | `EE` | Type / Rate / Balance |
-| 14 | Vocoder | `0x0806267C` | `0x08074DA4` | `0x08031620` | `00043030` | 48 / 48 | 4 | 0 | 5 | 7 | `EE` | Wave / Shift / Bandwidth |
-| 15 | Bass | `0x08062698` | `0x0807502C` | `0x08030BA4` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `EE` | Saturate / Fold / Noise |
-| 16 | SawX | `0x080626B4` | `0x08075074` | `0x080322A4` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `EE` | SawMod / Shape / Noise |
-| 17 | Harm | `0x080626D0` | `0x080750BC` | `0x080327B0` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `EE` | Spread / Rectify / Noise |
-| 18 | WaveUser | `0x080626EC` | `0x08074E34` | `0x08030990` | `00046060` | 96 / 96 | 4 | 0 | 4 | 10 | `0F` | Table / Position / Bitdepth |
-| 19 | Sample | `0x08062708` | `0x08074EC4` | `0x08030978` | `00046060` | 96 / 96 | 4 | 0 | 4 | 12 | `EE` | Start / Length / Loop |
-| 20 | Scan Grains | `0x08062724` | `0x08074E7C` | `0x08030984` | `00046060` | 96 / 96 | 4 | 0 | 4 | 12 | `EE` | Scan / Density / Chaos |
-| 21 | Cloud Grains | `0x08062740` | `0x08074E7C` | `0x08030984` | `00046060` | 96 / 96 | 4 | 0 | 4 | 12 | `EE` | Start / Density / Chaos |
-| 22 | Hit Grains | `0x0806275C` | `0x08074E7C` | `0x08030984` | `00046060` | 96 / 96 | 4 | 0 | 4 | 12 | `EE` | Start / Density / Shape |
+| 0 | Idle | `0x080624F4` | `0x08074D5C` | `0x0802FF34` | `0x0802FD88` | `0x08031430` | `0x08032054` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 0000` | – / – / – |
+| 1 | BasicWaves | `0x08062510` | `0x08074D5C` | `0x0802FF34` | `0x0802FD88` | `0x08031430` | `0x08032054` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 0000` | Morph / Sym / Sub |
+| 2 | SuperWave | `0x0806252C` | `0x08074DEC` | `0x0803000C` | `0x0802FD88` | `0x08033040` | `0x08030124` | `00046060` | 96 / 96 | `03` | `0000 / 3FFF / 3FFF` | Wave / Detune / Volume |
+| 3 | Wavetable | `0x08062548` | `0x08074E34` | `0x08030720` | `0x0802FD88` | `0x08030938` | `0x08030990` | `00046060` | 96 / 96 | `0F` | `0000 / 0000 / 0000` | Table / Position / Chorus |
+| 4 | Harmo | `0x08062564` | `0x08074F54` | `0x0803084C` | `0x08030544` | `0x08031BD0` | `0x08031040` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 1FFF` | Content / Sculpting / Chorus |
+| 5 | KarplusStr | `0x08062580` | `0x08074F9C` | `0x080307D8` | `0x0803051C` | `0x080319AC` | `0x08031010` | `06046060` | 96 / 96 | `EE` | `2666 / 0000 / 4CCC` | Bow / Position / Decay |
+| 6 | V.Analog | `0x0806259C` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00042030` | 48 / 32 | `EE` | `3FBF / 3FBF / 0000` | Detune / Shape / Wave |
+| 7 | Waveshaper | `0x080625B8` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00043030` | 48 / 48 | `EE` | `3FBF / 3FBF / 0000` | Wave / Amount / Asym |
+| 8 | Two Op. FM | `0x080625D4` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00043030` | 48 / 48 | `EE` | `2726 / 3E3D / 0000` | Ratio / Amount / Feedback |
+| 9 | Formant | `0x080625F0` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00042030` | 48 / 32 | `EE` | `2120 / 6D6C / 67E7` | Interval / Formant / Shape |
+| 10 | Chords | `0x0806260C` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00042030` | 48 / 32 | `0A` | `7FFF / 0000 / 0000` | Type / Inv/Trsp / Waveform |
+| 11 | Speech | `0x08062628` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00043030` | 48 / 48 | `EE` | `7FFF / 3D3C / 2DAD` | Type / Timbre / Word |
+| 12 | Modal | `0x08062644` | `0x08074D14` | `0x08030744` | `0x0802FEA4` | `0x0802FE14` | `0x0803099C` | `00032030` | 48 / 32 | `EE` | `201F / 2D2C / 6463` | Inharm / Timbre / Decay |
+| 13 | Noise | `0x08062660` | `0x08074FE4` | `0x08030764` | `0x080304F4` | `0x08031788` | `0x08030FDC` | `00046060` | 96 / 96 | `EE` | `2AAA / 7FFF / 3FFF` | Type / Rate / Balance |
+| 14 | Vocoder | `0x0806267C` | `0x08074DA4` | `0x080321D4` | `0x0802FFEC` | `0x080314EC` | `0x08031620` | `00043030` | 48 / 48 | `EE` | `0000 / 4000 / 4000` | Wave / Shift / Bandwidth |
+| 15 | Bass | `0x08062698` | `0x0807502C` | `0x080304A8` | `0x0802FD88` | `0x080304B0` | `0x08030BA4` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 0000` | Saturate / Fold / Noise |
+| 16 | SawX | `0x080626B4` | `0x08075074` | `0x0803043C` | `0x0802FD88` | `0x08030444` | `0x080322A4` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 0000` | SawMod / Shape / Noise |
+| 17 | Harm | `0x080626D0` | `0x080750BC` | `0x080303D0` | `0x0802FD88` | `0x080303D8` | `0x080327B0` | `00046060` | 96 / 96 | `EE` | `0000 / 0000 / 0000` | Spread / Rectify / Noise |
+| 18 | WaveUser | `0x080626EC` | `0x08074E34` | `0x08030720` | `0x0802FD88` | `0x08030938` | `0x08030990` | `00046060` | 96 / 96 | `0F` | `0000 / 0000 / 0000` | Table / Position / Bitdepth |
+| 19 | Sample | `0x08062708` | `0x08074EC4` | `0x08030674` | `0x0802FD88` | `0x080308E4` | `0x08030978` | `00046060` | 96 / 96 | `EE` | `0000 / 7FFF / 0000` | Start / Length / Loop |
+| 20 | Scan Grains | `0x08062724` | `0x08074E7C` | `0x0803067C` | `0x0802FD88` | `0x08031210` | `0x08030984` | `00046060` | 96 / 96 | `EE` | `6000 / 4000 / 0000` | Scan / Density / Chaos |
+| 21 | Cloud Grains | `0x08062740` | `0x08074E7C` | `0x0803067C` | `0x0802FD88` | `0x08031210` | `0x08030984` | `00046060` | 96 / 96 | `EE` | `0000 / 4000 / 0000` | Start / Density / Chaos |
+| 22 | Hit Grains | `0x0806275C` | `0x08074E7C` | `0x0803067C` | `0x0802FD88` | `0x08031210` | `0x08030984` | `00046060` | 96 / 96 | `EE` | `0000 / 4000 / 4000` | Start / Density / Shape |
 
 Type selection at `0x0800E748` updates the codec bytes for group-0 parameters `0x0001`, `0x0003` and `0x0005`, without replacing their descriptor flags. `0xEE` is a passthrough codec, **not** an unused marker; modes `0x01..0x7F` decode to scaled, saturated indices. Defaults are separate from current preset values; the signed gain offset is used at `0x080372A4` to select a coefficient from `0x08063018`. Copying a stock descriptor's header is useful only when its codec, defaults and gain behaviour suit the replacement.
 
 Byte `+0x00` correlates with runtime metadata: `04` Types advertise 96 kHz mono; `05` and `06` Types advertise 48 kHz mono. All `06` Types advertise 32 kHz paraphonic; `05` Types advertise 48 kHz paraphonic except V.Analog at 32 kHz. No consumer of `+0x00` or `+0x02` was observed in the exercised paths; a legacy field, flags or an enum are possibilities, not established meanings.
 
-Types 6–12 (V.Analog through Modal) use the **Plaits** family, adapted from Mutable Instruments' MIT-licensed code ([source](related-projects.md#mutable-instruments-plaits)). Noise (13) and Vocoder (14) do not use its outer vtable. Harmo and Harm are distinct OLED names; OLED text is sent in four-byte chunks, so `Harm` can be followed by `o`.
+Types 6–12 (V.Analog through Modal) use the **Plaits** family, adapted from Mutable Instruments' MIT-licensed code ([source](related-projects.md#mutable-instruments-plaits)). Noise (13) and Vocoder (14) do not use its outer vtable. Bass, SawX and Harm arrived in later firmware; WaveUser arrived with user wavetables, and Sample and the three Grains Types with 5.0.
 
 ## Engine classes
 
@@ -89,8 +89,8 @@ SAI2 output uses circular DMA2 Stream 4; half-transfer and transfer-complete int
 | Stage | Address | What happens |
 |---|---|---|
 | DMA IRQ | `0x0802F008` → `0x0801B31C` | Stream 4 handler calls the HAL DMA interrupt handler. |
-| Half / complete callbacks | `0x0801F304` / `0x0801F364` → `0x0802F0E8` / `0x0802F104` | DMA callbacks dispatch through the render-root vtable. |
-| Render thunks | `0x08039A54` / `0x08039A5C` → `0x08038DF8` | Select half 0 / 1 and tail to the audio dispatcher. |
+| Half / complete callbacks | `0x0801F364` / `0x0801F304` → `0x0802F104` / `0x0802F0E8` | HAL handle offsets `+0x40` / `+0x3C`; dispatch through the render-root vtable. |
+| Half / complete render thunks | `0x08039A5C` / `0x08039A54` → `0x08038DF8` | Pass selectors 1 / 0 and tail to the audio dispatcher. |
 | Voice frame | `0x08036B38` | Render active banks, mix mono or paraphonic PCM, and update shared controls. |
 | Per-bank preparation | `0x0803352C` | Apply pending note/gate, parameter, envelope and pitch changes; select/initialize the oscillator when needed. |
 | Oscillator render | `0x08034394` → primary `+0x24` | Indirect tail-branch to the selected engine; Plaits continues through its child `+0x08`. |
@@ -100,14 +100,16 @@ The IRQ chain is established from the firmware; full-system emulation schedules 
 
 ### Selection and state lifetime
 
-There are four preconstructed voice banks, each with its own `0x4000`-byte workspace.
+Constructor `0x080359B0` preconstructs four voice banks, each with its own `0x4000`-byte workspace.
+The frame root is `0x20004848`; bank 0 starts at `0x2000484C` and bank `i` at `0x2000484C + i*0x59E4`.
+The selected-object pointer is at each bank `+0x50AC` (bank 0: `0x200098F8`); the Type raw value is at `0x2001D9F0`.
 The selected oscillator is a per-bank object, not the workspace itself.
-Inactive banks retain the placeholder object until activation.
+On fresh boot, banks 1–3 can hold the placeholder; in one mono run all four had a real engine within 0.1 s of audio. Inactive banks can retain a real engine selected earlier.
 On a Type change, the old object's `+0x14` runs before the selected object's `+0x0C`.
 This also applies when two Types share the same outer object.
 The `+0x10` result configures rates, slot capacity and event cadence independently of the descriptor.
 A change of rate calls primary `+0x30` on all four selected objects, including inactive placeholders.
-For Plaits, `0x0802FF0C` updates a shared rate coefficient; `0x0802FDA4` is the common no-op for the other families.
+For Plaits, `0x0802FF0C` stores `55.0 / rate_hz` at `0x20000004`; `0x0802FDA4` is the common no-op for the other families.
 
 Storage sharing is per bank; it does not make all models one interchangeable object:
 
@@ -126,17 +128,21 @@ The `+0x20` auxiliary operation is model-specific and must not be treated as a u
 
 The path is primary render `0x0803099C` → `0x0800D480` → `0x0805F458` → child `+0x08`. Two header words precede each child table; they are not methods or a trailing zero. `tools/ghidra/MfSeed.java` seeds indirect targets.
 
-| Engine | Child vtable | `+0x08` render |
-|---|---|---|
-| Chords | `0x08078578` | `0x080589C8` |
-| Two Op. FM | `0x08078590` | `0x08059220` |
-| Formant | `0x080785A8` | `0x08059A10` |
-| Modal | `0x080785C0` | `0x0805B024` |
-| Speech | `0x080785D8` | `0x0805B20C` |
-| V.Analog | `0x08078604` | `0x0805B574` |
-| Waveshaper | `0x0807861C` | `0x0805C9A0` |
+| Engine | Child vtable | `+00` init | `+04` reset | `+08` render | Body size | `+0C` additional |
+|---|---|---|---|---|---|---|
+| Chords | `0x08078578` | `0x0805836C` | `0x08058494` | `0x080589C8` | 1,998 B | `0x08058368` |
+| Two Op. FM | `0x08078590` | `0x080591FC` | `0x0805921C` | `0x08059220` | 1,858 B | `0x080599B8` |
+| Formant | `0x080785A8` | `0x080599C4` | `0x08059A0C` | `0x08059A10` | 5,506 B | `0x08058368` |
+| Modal | `0x080785C0` | `0x0805B14C` | `0x0805B01C` | `0x0805B024` | 266 B | `0x08058368` |
+| Speech | `0x080785D8` | `0x0805B18C` | `0x0805B204` | `0x0805B20C` | 686 B | `0x08058368` |
+| V.Analog | `0x08078604` | `0x0805B4DC` | `0x0805B564` | `0x0805B574` | 4,948 B | `0x0805B568` |
+| Waveshaper | `0x0807861C` | `0x0805C950` | `0x0805C990` | `0x0805C9A0` | 1,940 B | `0x0805C994` |
 
-Child `+0x00` takes `(self, allocator)`, `+0x04` resets, and `+0x08` takes `(self, parameters, float *main, float *aux, frames, bool *already_enveloped)`; the last two arguments are on the stack. `+0x0C` is a partial reset or no-op, with no invocation observed during exercised gate/Type changes. Type changes initialize all seven children with overlapping workspace; child selection then invokes `+0x04` as needed.
+Sizes are function-body bytes, including noncontiguous ranges where applicable, not proof that the whole span is safe to overwrite. Modal's render calls DSP entry `0x0805D1BC`, with float arguments in S0–S4; Speech has subpaths at `0x0805E554` and `0x0805EA80`.
+
+Child `+0x00` takes `(self, allocator)`, `+0x04` resets, and `+0x08` takes `(self, parameters, float *main, float *aux, frames, bool *already_enveloped)`; the last two arguments are on the stack. Its parameter block has note at `+04`, timbre `+08`, morph `+0C`, harmonics `+10` and accent `+14`; Wave drives harmonics, Timbre drives timbre and Shape drives morph.
+
+The `+0x0C` effects on the child object are: `0x0805B568` clears `+10/+14/+34/+38`, `0x0805C994` sets `+10/+2C` to 0.5, `0x080599B8` clears `+10/+14/+18`, and `0x08058368` does nothing. No invocation was observed during exercised gate/Type changes. On Type changes `0x0805F2C4` resets the allocator to the same workspace before initializing each of the seven children; selection then invokes the chosen child's `+04` as needed.
 
 ## The per-engine config method
 
@@ -149,7 +155,7 @@ Primary slot `+0x10` returns a packed capability word, distinct from the 28-byte
 | `16..23` | Slot capacity. |
 | `24..31` | Global event interval in firmware frames; zero bypasses throttling. |
 
-The directory above gives each Type's word and decoded fields. KarplusStr's interval is global across banks, not a per-voice flag; six frames were observed as 192 codec samples with 32-sample blocks. A replacement engine may need a different config answer.
+All Types advertise four slots and zero event interval, with two exceptions: **Modal** advertises three slots, and **KarplusStr** advertises an interval of six firmware frames. KarplusStr's interval is global across banks, not a per-voice flag; six frames were observed as 192 codec samples with 32-sample blocks. A replacement engine may need a different config answer.
 
 ## How FreakSwap replaces an engine
 
