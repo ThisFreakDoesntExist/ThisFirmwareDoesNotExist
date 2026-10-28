@@ -103,7 +103,9 @@ The IRQ chain is established from the firmware; full-system emulation schedules 
 Constructor `0x080359B0` preconstructs four voice banks, each with its own `0x4000`-byte workspace.
 The frame root is `0x20004848`; bank 0 starts at `0x2000484C` and bank `i` at `0x2000484C + i*0x59E4`.
 The selected-object pointer is at each bank `+0x50AC` (bank 0: `0x200098F8`); the Type raw value is at `0x2001D9F0`.
-The selected oscillator is a per-bank object, not the workspace itself.
+For bank base `B`, the workspace occupies `B+0x34..B+0x4033`, followed by current/previous parameter caches at `+0x4034/+0x40B8`, envelopes at `+0x41DC/+0x4244`, and consumed/pending events at `+0x42B1/+0x42B5`.
+The four workspace starts are `0x20004880`, `0x2000A264`, `0x2000FC48` and `0x2001562C`; each bank also contains its pitch at `+0x10`, phase lanes at `+0x42C8`, and 23 Type-to-object pointers at `+0x5980`.
+The selected oscillator is a per-bank object, not the workspace itself; those surrounding fields and object storage are active firmware state, not free RAM.
 On fresh boot, banks 1–3 can hold the placeholder; in one mono run all four had a real engine within 0.1 s of audio. Inactive banks can retain a real engine selected earlier.
 On a Type change, the old object's `+0x14` runs before the selected object's `+0x0C`.
 This also applies when two Types share the same outer object.
@@ -143,6 +145,30 @@ Sizes are function-body bytes, including noncontiguous ranges where applicable, 
 Child `+0x00` takes `(self, allocator)`, `+0x04` resets, and `+0x08` takes `(self, parameters, float *main, float *aux, frames, bool *already_enveloped)`; the last two arguments are on the stack. Its parameter block has note at `+04`, timbre `+08`, morph `+0C`, harmonics `+10` and accent `+14`; Wave drives harmonics, Timbre drives timbre and Shape drives morph.
 
 The `+0x0C` effects on the child object are: `0x0805B568` clears `+10/+14/+34/+38`, `0x0805C994` sets `+10/+2C` to 0.5, `0x080599B8` clears `+10/+14/+18`, and `0x08058368` does nothing. No invocation was observed during exercised gate/Type changes. On Type changes `0x0805F2C4` resets the allocator to the same workspace before initializing each of the seven children; selection then invokes the chosen child's `+04` as needed.
+
+## Oscillator resources
+
+These are addresses in the 5.0.0.2084 **Main flash** image, not addresses in external QSPI or host memory. Ranges are half-open; pointer tables can alias the same sample data. Reuse a resource by address rather than copying it into a patch.
+
+| Engine / resource | Flash address or range | Contents |
+|---|---|---|
+| BasicWaves, SuperWave, Vocoder | `0x0806309C..0x0806331C` | Five waveform families × 32 pitch bands: 160 pointers to 34 distinct waveforms. |
+| Shared fixed-point pitch | `0x0806331C..0x08063B1C` | 512 unsigned pitch / exp2 entries. |
+| BasicWaves, SuperWave, Vocoder | `0x08063B20..0x0806C320` | 34 bandlimited waveforms × 512 signed 16-bit samples, selected via the pointer bank above. |
+| KarplusStr | `0x0806C3A4..0x0806D3A8`; `0x08071448..0x08071CD8` | 1,025-float sine table; four 137-entry coefficient tables. |
+| Harmo | `0x0806D3A8`, `0x0806D3F8`, `0x0806F420` | Mip offsets / shifts and two packed 16-bit waveform banks. |
+| Noise | `0x08071CD8`, `0x080724DA`, `0x08072CDC` | Three interpolation waveforms of 1,025 signed 16-bit samples each. |
+| Chords | `0x08076538`, `0x0807654C`, `0x0807660C`, `0x08078484`, `0x08078534` | Fade points, registrations, 15 integrated waveforms, chord intervals and waveform pointers. |
+| Waveshaper | `0x0807B50C`, `0x0807BD1C`, `0x0807C024`, `0x0807C228`, `0x0807C42C`, `0x0807C630`, `0x0807CCD0` | Fold and waveshaping transfer tables. |
+| Modal | `0x0807BF20..0x0807C024` | 65 floating-point stiffness values. |
+| Two Op. FM | `0x0807CACC..0x0807CCD0` | 129 floating-point frequency-quantizer values. |
+| Plaits pitch and sine | `0x0807D4E0..0x0807E8E4`, `0x0807E8E4`, `0x0807ECE8` | 1,281-float sine table and separate fractional-semitone / note-frequency tables. |
+| Speech | `0x0807862C`, `0x08078764`, `0x08078838`, `0x0807B368`, `0x0807B464`, `0x0807B4A4`, `0x0807C84C` | LPC coefficients and phonemes, five packed-bank descriptors, formant tables and excitation pulse. |
+| Envelope / LFO | `0x080619D0`, `0x08061DD4`, `0x08061FD8`, `0x0806205C` | Shared attack, decay, cycling-envelope and LFO-rate curves. |
+
+The pointer slot is `0x0806309C + 4*(family*32 + band)`. Multiple bands and families point to the same data; counting unique targets in the 160 slots gives 34 waveforms, each 1,024 bytes.
+
+Harmo also uses selected arrays from the bandlimited region indirectly during startup to build its normalization table; its render-time partials use the separate Harmo banks above. Wavetable and WaveUser use external QSPI rather than these internal waveform banks: the legacy Wavetable data starts at QSPI offset `0`, while WaveUser's factory descriptor pages and samples start at `0xF5F000` and `0xF6F000`. Sample / Grains also depend on external sample storage.
 
 ## The per-engine config method
 
